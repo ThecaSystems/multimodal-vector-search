@@ -1,0 +1,11 @@
+output/
+venv/
+
+.idea/
+.vscode
+
+**/__pycache__
+*.egg-info
+
+temp.*
+*.pkl
