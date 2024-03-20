@@ -19,23 +19,11 @@ class Flipkart(DataLoader):
 
         self.df["brand"] = self.df["brand"].fillna("n/a")
         self.df["description"] = self.df["description"].fillna("n/a")
-        self.df["retail_price"].fillna(
-            np.nanmean(self.df["retail_price"]), inplace=True
-        )
-        self.df["discounted_price"].fillna(
-            np.nanmean(self.df["discounted_price"]), inplace=True
-        )
         category_splits = self.df["product_category_tree"].str.split(">>", expand=True)
         category_splits = category_splits.replace('[\["\]]', "", regex=True)
-        category_splits.columns = [
-            f"product_category_{i + 1}" for i in range(category_splits.shape[1])
-        ]
-        self.df = self.df.join(
-            category_splits[category_splits.columns[:3]]
-        )  # retain top 3 categories
-        self.df["product_specifications"] = self.df["product_specifications"].apply(
-            lambda x: format_specs(str(x))
-        )
+        category_splits.columns = [f"product_category_{i + 1}" for i in range(category_splits.shape[1])]
+        self.df = self.df.join(category_splits[category_splits.columns[:3]])  # retain top 3 categories
+        self.df["product_specifications"] = self.df["product_specifications"].apply(lambda x: format_specs(str(x)))
         # Remove columns that can't be treated as modalities or that have too many nulls
         columns_to_drop = [
             "pid",

@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import torch
+import sys
 from scipy.integrate import quad
 from tqdm import tqdm
 from typing import Any
@@ -41,13 +42,8 @@ class ModalityEncoder:
         self.epsilon = epsilon
         self.product_data = None
 
-    def encode_products(
-        self,
-        data: pd.DataFrame,
-        batch_size: int = 10,
-        save_dir: str = None,
-        method: str = "Retrieval",
-    ) -> np.array:
+    def encode_products(self, data: pd.DataFrame, batch_size: int = 10, save_dir: str = None,
+                        method: str = "Retrieval") -> np.array:
         """
         Encode a dataframe of products according to the encoding schema.
 
@@ -83,7 +79,7 @@ class ModalityEncoder:
                     )
                 elif encoding == "dense":
                     min_value, max_value = data[column].min(), data[column].max()
-                    scaled_data = (2 * ((data[column] - min_value) / (max_value - min_value)) - 1)
+                    scaled_data = 2 * ((data[column] - min_value) / (max_value - min_value)) - 1
                     full_circle_encoding = self._scalar_to_fourier_series(scaled_data.to_numpy())
                     half_circle_encoding = self._scalar_to_fourier_series(
                         scaled_data.to_numpy(), freq=np.pi / 2, num_harmonics=1
@@ -94,6 +90,7 @@ class ModalityEncoder:
                             np.vstack(np.ones(data.shape[0])),  # shift dimension
                             np.vstack(full_circle_encoding),
                             np.vstack(np.ones(data.shape[0])),  # shift dimension
+                            np.vstack(self._null_indicator_dim(data[column]))  # null indicator dimension
                         ),
                         axis=1,
                     )
@@ -177,6 +174,7 @@ class ModalityEncoder:
                             modality[3:] = self._interval_encoding(lower_bound, upper_bound)
                             if is_negated:
                                 modality[3:] = -modality[3:]
+                    modality = np.append(modality, 1)  # null indicator dimension
                 else:
                     continue
                 encoded_data = np.concatenate((encoded_data.flatten(), modality * weight))
@@ -218,7 +216,8 @@ class ModalityEncoder:
                     else:
                         lower_bound, upper_bound, is_negated = value
                         # we assign smaller number to values inside the interval to give them better ranking
-                        col = col.apply(lambda x: -1 if lower_bound <= x <= upper_bound else 1)
+                        col = col.apply(lambda x: sys.float_info.min if lower_bound <= x <= upper_bound else x)
+                        col = col.fillna(sys.float_info.max)  # this filter needs explicit treatment of null values
                         is_ascending = is_negated
                     col_rank = (col.rank(ascending=is_ascending) - 1) / (len(search_result) - 1)
                 elif encoding == "geolocation":
@@ -339,6 +338,14 @@ class ModalityEncoder:
         return np.append(vector_scaled, 1 - dot_max)
 
     @staticmethod
+    def _null_indicator_dim(column: pd.Series) -> np.ndarray:
+        """Create dimension with -1 for missing entries and 0 for the rest."""
+        nan_indices = np.argwhere(np.isnan(column)).flatten()
+        nan_dim = np.zeros(column.shape[0])
+        nan_dim[nan_indices] = -1
+        return nan_dim
+
+    @staticmethod
     def _haversine_distance(
         points: np.ndarray[tuple[float, float]], ref_point: tuple[float, float]) -> np.array:
         """Compute the distance (in km) between a set of points and a reference point using Haversine formula
@@ -368,8 +375,6 @@ class ModalityEncoder:
         """Create Fourier series in a vectorized manner."""
         if num_harmonics is None:
             num_harmonics = self.num_harmonics
-        if np.any(pd.isna(values)):
-            raise ValueError("NaN values are not allowed in numerical inputs")
         if np.any(np.abs(values) > 1):
             raise ValueError("All values should be in the range [-1, 1]")
 
@@ -386,6 +391,8 @@ class ModalityEncoder:
         fourier_series = np.vstack(
             np.split(sin_cos_interleaved, sin_components.shape[0], axis=1)
         ).reshape(sin_components.shape[0], -1)
+
+        fourier_series[np.isnan(fourier_series)] = 0  # handle missing values
 
         if isinstance(values, float | int):
             return fourier_series.flatten()

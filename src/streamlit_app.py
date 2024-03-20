@@ -28,9 +28,7 @@ def load_data(dataset: str) -> load.DataLoader:
 
 @st.cache_resource
 def load_model(model_path_or_name: str) -> TextEmbedder:
-    if model_path_or_name.startswith(
-        "/"
-    ):  # local model, needs to be prepended with "/"
+    if model_path_or_name.startswith("/"):  # local model, needs to be prepended with "/"
         model_path_or_name = str(root_dir()) + model_path_or_name
     try:
         return TextEmbedder(model_path_or_name)
@@ -72,28 +70,18 @@ def init_session_vars(var_names: list[str]) -> None:
             st.session_state[var] = None
 
 
-def do_search(
-    query_text: str, aux_data: dict[str, Any], display_columns: list[str]
-) -> None:
+def do_search(query_text: str, aux_data: dict[str, Any], display_columns: list[str]) -> None:
     if query_text:
         with st.spinner("Searching..."):
             start_time = time()
-            encoded_query = st.session_state["encoder"].encode_query(
-                query_text, aux_data, st.session_state["method"]
-            )
-            distances, indices = st.session_state["index"].search(
-                encoded_query.reshape(1, -1), k=num_results
-            )
+            encoded_query = st.session_state["encoder"].encode_query(query_text, aux_data, st.session_state["method"])
+            distances, indices = st.session_state["index"].search(encoded_query.reshape(1, -1), k=num_results)
             result_df = data.df.iloc[indices[0]][:]
             result_df["relevance"] = distances.reshape(-1, 1)
             if st.session_state["method"] == "Re-ranking":
                 st.session_state["encoder"].encode_result(result_df, aux_data)
             result_df.sort_values(by="relevance", ascending=False, inplace=True)
-            st.dataframe(
-                result_df[display_columns + ["relevance"]],
-                hide_index=True,
-                use_container_width=True,
-            )
+            st.dataframe(result_df[display_columns + ["relevance"]], hide_index=True, use_container_width=True)
             st.caption(f":watch: {time() - start_time:.3f} sec")
             # Plot geolocation data
             for key, value in aux_data.items():
@@ -101,9 +89,7 @@ def do_search(
                     plot_locations(result_df, key, value[0])
 
 
-def plot_locations(
-    result_df: pd.DataFrame, geolocation_column: str, point_q: tuple[float, float]
-) -> None:
+def plot_locations(result_df: pd.DataFrame, geolocation_column: str, point_q: tuple[float, float]) -> None:
     if point_q is not None:
         longitudes = result_df[geolocation_column].apply(lambda x: x[0]).tolist()
         latitudes = result_df[geolocation_column].apply(lambda x: x[1]).tolist()
@@ -111,9 +97,7 @@ def plot_locations(
         colors.append("#2ecc71")  # green color for query
         longitudes.append(point_q[0])
         latitudes.append(point_q[1])
-        map_data = pd.DataFrame(
-            {"longitude": longitudes, "latitude": latitudes, "colors": colors}
-        )
+        map_data = pd.DataFrame({"longitude": longitudes, "latitude": latitudes, "colors": colors})
         map_placeholder[geolocation_column].map(map_data, color="colors", zoom=4)
 
 
@@ -191,19 +175,11 @@ with col1:
         )
 
         with col3:
-            col3_title = (
-                "Rank by modalities"
-                if st.session_state["method"] == "Retrieval"
-                else "Re-rank by modalities"
-            )
+            col3_title = "Rank by modalities" if st.session_state["method"] == "Retrieval" else "Re-rank by modalities"
             st.subheader(col3_title, divider="blue")
-            aux_data = dict.fromkeys(
-                st.session_state["aux_encoding_schema"].keys(), (None, 1.0)
-            )
+            aux_data = dict.fromkeys(st.session_state["aux_encoding_schema"].keys(), (None, 1.0))
             map_placeholder = dict()
-            for index, (column, encoding) in enumerate(
-                st.session_state["aux_encoding_schema"].items()
-            ):
+            for index, (column, encoding) in enumerate(st.session_state["aux_encoding_schema"].items()):
                 values = None
                 st.markdown(f'Modality: :violet["**{column}**"]')
                 if encoding == "one_hot":
@@ -230,9 +206,7 @@ with col1:
                         osm_url = f"https://nominatim.openstreetmap.org/search?format=json&q={address}"
                         location_data = requests.get(osm_url).json()
                         if location_data:
-                            latitude, longitude = float(location_data[0]["lat"]), float(
-                                location_data[0]["lon"]
-                            )
+                            latitude, longitude = float(location_data[0]["lat"]), float(location_data[0]["lon"])
                             map_placeholder[column] = st.empty()
                             values = (longitude, latitude, negation)
                         else:
@@ -283,12 +257,8 @@ with col1:
                         negation = st.checkbox("Negate", key=column + "_not")
                         if lower_bound != min_value or upper_bound != max_value:
                             if column in data.transformation_schema:
-                                lower_bound = data.transformation_schema[
-                                    column
-                                ].transform(lower_bound)
-                                upper_bound = data.transformation_schema[
-                                    column
-                                ].transform(upper_bound)
+                                lower_bound = data.transformation_schema[column].transform(lower_bound)
+                                upper_bound = data.transformation_schema[column].transform(upper_bound)
                             values = (lower_bound, upper_bound, negation)
 
                     elif dense_filter == "From centroid":
@@ -318,6 +288,4 @@ with col2:
         query_text = st.text_input("Enter your search query", disabled=False)
         do_search(query_text, aux_data, display_columns)
     else:
-        query_text = st.text_input(
-            "Search for products", "Index products to enable search", disabled=True
-        )
+        query_text = st.text_input("Search for products", "Index products to enable search", disabled=True)
