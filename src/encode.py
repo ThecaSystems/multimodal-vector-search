@@ -68,12 +68,15 @@ class ModalityEncoder:
                 if encoding == "one_hot":
                     modality = pd.get_dummies(data[column], dtype=int).to_numpy()
                 elif encoding == "binary":
-                    modality = (pd.get_dummies(data[column], dtype=int, drop_first=True) * 2 - 1).to_numpy()
+                    values = data[column].dropna().unique()
+                    mapping = {values[0]: -1, values[1]: 1, np.nan: 0}
+                    modality = data[column].replace(mapping).to_numpy().reshape(-1, 1)
                 elif encoding == "geolocation":
                     modality = np.concatenate(
                         (
                             np.vstack(data[column].apply(self._geospatial_to_cartesian)),
-                            np.vstack(np.ones(data.shape[0])),
+                            np.vstack(np.ones(data.shape[0])),  # shift dimension
+                            np.vstack(self._null_indicator_dim(data[column]))  # null indicator dimension
                         ),
                         axis=1,
                     )
@@ -140,19 +143,20 @@ class ModalityEncoder:
                     if value is None:
                         modality = np.zeros(1)
                     else:
-                        unique_values = sorted(self.product_data[key].dropna().unique())
-                        modality = np.array([1]) if value == unique_values[-1] else np.array([-1])
+                        values = self.product_data[key].dropna().unique()
+                        modality = np.array([1 if value == values[1] else -1])
                 elif encoding == "geolocation":
                     if value is None:
-                        modality = np.zeros(4)
+                        modality = np.zeros(5)  # 3 dim for cartesian coordinates + shift dim + null indicator dim
                     else:
                         longitude, latitude, is_negated = value
                         points = self.product_data[key].values
                         distances = self._haversine_distance(points, (longitude, latitude))
-                        farthest_point = self.product_data[key].iloc[np.argmax(distances)]
+                        farthest_point = self.product_data[key].iloc[np.nanargmax(distances)]
                         modality = self._geospatial_encoding((longitude, latitude), farthest_point)
                         if is_negated:
                             modality = -modality
+                        modality = np.append(modality, 1)  # null indicator dimension
                 elif encoding == "dense":
                     modality = np.zeros(self.num_harmonics * 2 + 4)  # 2 shift dimensions + 2 half-circle dimensions = 4
                     if value is not None:
@@ -184,6 +188,7 @@ class ModalityEncoder:
     def encode_result(self, search_result: pd.DataFrame, aux_data: dict[str, tuple[Any, float]]) -> None:
         """
         Encode the relevance scores of search results using the linear combination of modalities, for re-ranking.
+        Missing values are prioritized over non-matching values (in categorical and binary columns)
 
         :param search_result: pd.DataFrame: The dataframe of search results. Must contain the 'relevance' column.
         :param aux_data: dict[str, tuple[Any, float]: Auxiliary data to be used for re-ranking search results.
@@ -212,12 +217,13 @@ class ModalityEncoder:
                             is_ascending = False
                         else:  # centroid filter
                             col = abs(v - col)
+                            col = col.fillna(sys.float_info.max)
                             is_ascending = is_negated
                     else:
                         lower_bound, upper_bound, is_negated = value
                         # we assign smaller number to values inside the interval to give them better ranking
                         col = col.apply(lambda x: sys.float_info.min if lower_bound <= x <= upper_bound else x)
-                        col = col.fillna(sys.float_info.max)  # this filter needs explicit treatment of null values
+                        col = col.fillna(sys.float_info.max)
                         is_ascending = is_negated
                     col_rank = (col.rank(ascending=is_ascending) - 1) / (len(search_result) - 1)
                 elif encoding == "geolocation":
@@ -236,13 +242,20 @@ class ModalityEncoder:
                     col = pd.Series(np.dot(col_vec, query_vec), index=col.index)
                     col_rank = (col.rank(ascending=is_ascending) - 1) / (len(search_result) - 1)
                 elif encoding == "binary":
-                    min_value = " " if isinstance(value, str) else -np.inf
-                    col = col.replace(value, min_value)
+                    if isinstance(value, str):
+                        col = col.replace(value, " ")  # assign value to the smallest char
+                        col = col.fillna("\'")  # assign nans to the next smallest char
+                    else:
+                        col = col.replace(value, -np.inf)  # assign value to the smallest number
+                        col = col.fillna(-sys.float_info.max)  # assign value to the next smallest number
                     col_rank = (col.rank(ascending=False) - 1) / (len(search_result) - 1)
                 elif encoding == "one_hot":
                     selection, is_negated = value
                     if any([v in col.values for v in selection]):
+                        # Empty string has top ranking, and 'z' has bottom ranking
                         col = col.replace(selection, " ")
+                        # col = col.replace(set(col.values) - set(selection), "_")  # treat all mismatches the same
+                        col = col.fillna("\'")  # treat missing values differently (either above or below the rest)
                         col_rank = (col.rank(ascending=is_negated) - 1) / (len(search_result) - 1)
                     else:
                         continue
@@ -340,35 +353,41 @@ class ModalityEncoder:
     @staticmethod
     def _null_indicator_dim(column: pd.Series) -> np.ndarray:
         """Create dimension with -1 for missing entries and 0 for the rest."""
-        nan_indices = np.argwhere(np.isnan(column)).flatten()
+        nan_mask = pd.isna(column)
         nan_dim = np.zeros(column.shape[0])
-        nan_dim[nan_indices] = -1
+        nan_dim[nan_mask] = -1
         return nan_dim
 
     @staticmethod
-    def _haversine_distance(
-        points: np.ndarray[tuple[float, float]], ref_point: tuple[float, float]) -> np.array:
+    def _haversine_distance(points: np.ndarray[tuple[float, float]], ref_point: tuple[float, float]) -> np.array:
         """Compute the distance (in km) between a set of points and a reference point using Haversine formula
         Note: this formula assumes spherical Earth, which results in errors of up to 0.5%
         https://www.geeksforgeeks.org/program-distance-two-points-earth/
         """
+        distances = np.empty(points.shape[0])
+        nan_mask = pd.isnull(points)
+        distances[nan_mask] = np.nan
         lon1, lat1 = np.radians(ref_point)
-        lon2, lat2 = np.radians(np.stack(points)[:, 0]), np.radians(np.stack(points)[:, 1])
+        lon2, lat2 = np.radians(np.stack(points[~nan_mask])[:, 0]), np.radians(np.stack(points[~nan_mask])[:, 1])
         dlon = lon2 - lon1
         dlat = lat2 - lat1
         a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
         c = 2 * np.arcsin(np.sqrt(a))
         R = 6371  # Radius of Earth
-        return c * R
+        distances[~nan_mask] = c * R
+        return distances
 
     @staticmethod
     def _geospatial_to_cartesian(point: tuple[float, float]) -> np.ndarray:
         """Converts a point designated by a longitude / latitude pair to Cartesian coordinates on a unit sphere."""
-        lon, lat = np.radians(point)
-        x = np.cos(lat) * np.cos(lon)
-        y = np.cos(lat) * np.sin(lon)
-        z = np.sin(lat)
-        return np.array([x, y, z])
+        if point is None:
+            return np.zeros(3)
+        else:
+            lon, lat = np.radians(point)
+            x = np.cos(lat) * np.cos(lon)
+            y = np.cos(lat) * np.sin(lon)
+            z = np.sin(lat)
+            return np.array([x, y, z])
 
     def _scalar_to_fourier_series(self, values: np.ndarray | float | int, freq: float = np.pi,
                                   num_harmonics: int = None) -> np.ndarray:

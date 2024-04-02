@@ -44,7 +44,7 @@ def get_aux_encoding_schema() -> dict[str, str]:
         if data.df[col].nunique() == 2:
             aux_encoding_schema[col] = "binary"
         elif dtype in ("object", "category"):
-            if isinstance(data.df[col].iloc[0], tuple):
+            if data.df[col].apply(lambda x: isinstance(x, tuple)).any():
                 aux_encoding_schema[col] = "geolocation"
             else:
                 aux_encoding_schema[col] = "one_hot"
@@ -91,8 +91,9 @@ def do_search(query_text: str, aux_data: dict[str, Any], display_columns: list[s
 
 def plot_locations(result_df: pd.DataFrame, geolocation_column: str, point_q: tuple[float, float]) -> None:
     if point_q is not None:
-        longitudes = result_df[geolocation_column].apply(lambda x: x[0]).tolist()
-        latitudes = result_df[geolocation_column].apply(lambda x: x[1]).tolist()
+        result_df_ = result_df.dropna(subset=[geolocation_column])
+        longitudes = result_df_[geolocation_column].apply(lambda x: x[0]).tolist()
+        latitudes = result_df_[geolocation_column].apply(lambda x: x[1]).tolist()
         colors = ["#3498db"] * len(latitudes)  # blue color for products
         colors.append("#2ecc71")  # green color for query
         longitudes.append(point_q[0])
@@ -185,7 +186,7 @@ with col1:
                 if encoding == "one_hot":
                     selection = st.multiselect(
                         column,
-                        options=sorted(data.df[column].dropna().unique()),
+                        options=sorted(data.df[column].unique(), key=lambda x: (x is not None, x)),
                         label_visibility="collapsed",
                         default=[],
                         key=column,
