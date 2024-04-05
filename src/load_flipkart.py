@@ -1,4 +1,3 @@
-import numpy as np
 import re
 from src.load import DataLoader
 from dataclasses import dataclass

@@ -270,7 +270,7 @@ class ModalityEncoder:
                 return
             pt_files = list((data_dir() / self.text_embedding_dir).glob("*.pt"))
             if len(pt_files) == 0:
-                print(f"No .pt files found in the folder!")
+                print(f"No .pt files found in the folder.")
                 return
             text_embeddings = torch.load(pt_files[0])
             if len(pt_files) > 1:
@@ -301,7 +301,7 @@ class ModalityEncoder:
                 embedding_list.extend(normalized_embedding)
                 chunk_start = chunk_end
             # Save to disk before returning
-            file_name = f"text_embeddings_{self.text_embedder.model_name}.pt"
+            file_name = f"text_embeddings_{self.text_embedder.model_name.split('/')[-1]}.pt"
             try:
                 torch.save(torch.stack(embedding_list), data_dir() / (save_dir or "") / file_name)
             except RuntimeError:
