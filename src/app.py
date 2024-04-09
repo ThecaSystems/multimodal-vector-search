@@ -99,7 +99,7 @@ def plot_locations(result_df: pd.DataFrame, geolocation_column: str, point_q: tu
         longitudes.append(point_q[0])
         latitudes.append(point_q[1])
         map_data = pd.DataFrame({"longitude": longitudes, "latitude": latitudes, "colors": colors})
-        map_placeholder[geolocation_column].map(map_data, color="colors", zoom=4)
+        map_placeholder[geolocation_column].map(map_data, color="colors", zoom=7)
 
 
 args = get_args()
@@ -181,106 +181,104 @@ with col1:
             aux_data = dict.fromkeys(st.session_state["aux_encoding_schema"].keys(), (None, 1.0))
             map_placeholder = dict()
             for index, (column, encoding) in enumerate(st.session_state["aux_encoding_schema"].items()):
-                values = None
-                st.markdown(f'Modality: :violet["**{column}**"]')
-                if encoding == "one_hot":
-                    selection = st.multiselect(
-                        column,
-                        options=sorted(data.df[column].unique(), key=lambda x: (x is not None, x)),
-                        label_visibility="collapsed",
-                        default=[],
-                        key=column,
-                    )
-                    negation = st.checkbox("Negate", key=column + "_not")
-                    values = (selection, negation)
-                elif encoding == "binary":
-                    values = st.radio(
-                        "Value",
-                        data.df[column].dropna().unique(),
-                        index=None,
-                        key=column,
-                    )
-                elif encoding == "geolocation":
-                    address = st.text_input("Enter your address:", key=column)
-                    negation = st.checkbox("Negate", key=column + "_not")
-                    if address:
-                        osm_url = f"https://nominatim.openstreetmap.org/search?format=json&q={address}"
-                        location_data = requests.get(osm_url).json()
-                        if location_data:
-                            latitude, longitude = float(location_data[0]["lat"]), float(location_data[0]["lon"])
-                            map_placeholder[column] = st.empty()
-                            values = (longitude, latitude, negation)
-                        else:
-                            st.error("Address not found. Please enter a valid address.")
-                elif encoding == "dense":
-                    min_value = data.df[column].min()
-                    max_value = data.df[column].max()
-                    col31, col32 = st.columns(2)
-                    with col31:
-                        dense_filter = st.radio(
-                            "Select range",
-                            ["Low/High", "From - To", "From centroid"],
-                            index=0,
-                            key=column + "_filter",
+                with st.expander(f'Modality: :violet["**{column}**"]', expanded=True):
+                    values = None
+                    if encoding == "one_hot":
+                        selection = st.multiselect(
+                            column,
+                            options=sorted(data.df[column].unique(), key=lambda x: (x is not None, x)),
+                            label_visibility="collapsed",
+                            default=[],
+                            key=column,
                         )
-
-                    if dense_filter == "Low/High":
-                        with col32:
-                            ranking = st.radio(
-                                "Low/High",
-                                ["Lowest", "Highest"],
-                                index=None,
-                                label_visibility="hidden",
-                                key=column + "_low/high",
-                            )
-                        if ranking == "Lowest":
-                            values = (data.transformed_df[column].min(),)
-                        elif ranking == "Highest":
-                            values = (data.transformed_df[column].max(),)
-
-                    elif dense_filter == "From - To":
+                        negation = st.checkbox("Negate", key=column + "_not")
+                        values = (selection, negation)
+                    elif encoding == "binary":
+                        values = st.radio(
+                            "Value",
+                            data.df[column].dropna().unique(),
+                            index=None,
+                            key=column,
+                        )
+                    elif encoding == "geolocation":
+                        address = st.text_input("Enter your address:", key=column)
+                        negation = st.checkbox("Negate", key=column + "_not")
+                        if address:
+                            osm_url = f"https://nominatim.openstreetmap.org/search?format=json&q={address}"
+                            location_data = requests.get(osm_url).json()
+                            if location_data:
+                                latitude, longitude = float(location_data[0]["lat"]), float(location_data[0]["lon"])
+                                map_placeholder[column] = st.empty()
+                                values = (longitude, latitude, negation)
+                            else:
+                                st.error("Address not found. Please enter a valid address.")
+                    elif encoding == "dense":
+                        min_value = data.df[column].min()
+                        max_value = data.df[column].max()
                         col31, col32 = st.columns(2)
                         with col31:
-                            lower_bound = st.number_input(
-                                "From",
-                                min_value=min_value,
-                                max_value=max_value,
-                                key=column + "_from",
+                            dense_filter = st.radio(
+                                "Select range",
+                                ["Low/High", "From - To", "From centroid"],
+                                index=0,
+                                key=column + "_filter",
                             )
-                        with col32:
-                            upper_bound = st.number_input(
-                                "To",
-                                min_value=min_value,
-                                max_value=max_value,
-                                value=max_value,
-                                key=column + "_to",
-                            )
-                        negation = st.checkbox("Negate", key=column + "_not")
-                        if lower_bound != min_value or upper_bound != max_value:
-                            if column in data.transformation_schema:
-                                lower_bound = data.transformation_schema[column].transform(lower_bound)
-                                upper_bound = data.transformation_schema[column].transform(upper_bound)
-                            values = (lower_bound, upper_bound, negation)
 
-                    elif dense_filter == "From centroid":
-                        with col32:
-                            value = st.number_input(
-                                "Centroid value",
-                                min_value=min_value,
-                                max_value=max_value,
-                                key=column + "_from_centroid",
-                                value=None,
-                            )
-                        negation = st.checkbox("Negate", key=column + "_not")
-                        if value is not None and column in data.transformation_schema:
-                            value = data.transformation_schema[column].transform(value)
-                        values = (value, negation)
+                        if dense_filter == "Low/High":
+                            with col32:
+                                ranking = st.radio(
+                                    "Low/High",
+                                    ["Lowest", "Highest"],
+                                    index=None,
+                                    label_visibility="hidden",
+                                    key=column + "_low/high",
+                                )
+                            if ranking == "Lowest":
+                                values = (data.transformed_df[column].min(),)
+                            elif ranking == "Highest":
+                                values = (data.transformed_df[column].max(),)
 
-                weight = st.slider(
-                    "Modality weight", 0.0, 10.0, 1.0, key=column + "_weight"
-                )
-                aux_data[column] = (values, weight)
-                st.divider()
+                        elif dense_filter == "From - To":
+                            col31, col32 = st.columns(2)
+                            with col31:
+                                lower_bound = st.number_input(
+                                    "From",
+                                    min_value=min_value,
+                                    max_value=max_value,
+                                    key=column + "_from",
+                                )
+                            with col32:
+                                upper_bound = st.number_input(
+                                    "To",
+                                    min_value=min_value,
+                                    max_value=max_value,
+                                    value=max_value,
+                                    key=column + "_to",
+                                )
+                            negation = st.checkbox("Negate", key=column + "_not")
+                            if lower_bound != min_value or upper_bound != max_value:
+                                if column in data.transformation_schema:
+                                    lower_bound = data.transformation_schema[column].transform(lower_bound)
+                                    upper_bound = data.transformation_schema[column].transform(upper_bound)
+                                values = (lower_bound, upper_bound, negation)
+
+                        elif dense_filter == "From centroid":
+                            with col32:
+                                value = st.number_input(
+                                    "Centroid value",
+                                    min_value=min_value,
+                                    max_value=max_value,
+                                    key=column + "_from_centroid",
+                                    value=None,
+                                )
+                            negation = st.checkbox("Negate", key=column + "_not")
+                            if value is not None and column in data.transformation_schema:
+                                value = data.transformation_schema[column].transform(value)
+                            values = (value, negation)
+                    weight = st.slider(
+                        "Modality weight", 0.0, 10.0, 1.0, key=column + "_weight"
+                    )
+                    aux_data[column] = (values, weight)
             print(aux_data)
 
 with col2:
