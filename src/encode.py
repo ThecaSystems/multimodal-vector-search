@@ -17,7 +17,7 @@ class ModalityEncoder:
     When used for re-ranking, it encodes relevance scores of each returned item with linear combination of modalities.
 
     Supported auxiliary encodings for multimodal retrieval:
-    'one_hot': a one-hot encoding for categorical data; allows the selection of multiple categories at query time
+    'sparse': a one-hot encoding for categorical data; allows the selection of multiple categories at query time
     'dense': a 2-dimensional dense vector encoding for numerical data
     'binary': a binary encoding for boolean data, takes values {-1, 1}
     """
@@ -29,7 +29,7 @@ class ModalityEncoder:
         text_encoding_schema: dict[str, float] = None,
         aux_encoding_schema: dict[str, str] = None,
         num_harmonics: int = 50,
-        epsilon: float = 0.01,
+        epsilon: float = 0.0,
     ):
         assert (
             text_embedding_dir is not None or text_encoding_schema is not None
@@ -65,7 +65,7 @@ class ModalityEncoder:
 
         if method == "Retrieval":
             for column, encoding in self.aux_encoding_schema.items():
-                if encoding == "one_hot":
+                if encoding == "sparse":
                     modality = pd.get_dummies(data[column], dtype=int).to_numpy()
                 elif encoding == "binary":
                     values = data[column].dropna().unique()
@@ -130,7 +130,7 @@ class ModalityEncoder:
         if method == "Retrieval":
             for key, (value, weight) in aux_data.items():
                 encoding = self.aux_encoding_schema[key]
-                if encoding == "one_hot":
+                if encoding == "sparse":
                     unique_values = sorted(self.product_data[key].dropna().unique())  # pd.get_dummies sorts values
                     selection, is_negated = value
                     if selection is None or selection == []:
@@ -249,7 +249,7 @@ class ModalityEncoder:
                         col = col.replace(value, -np.inf)  # assign value to the smallest number
                         col = col.fillna(-sys.float_info.max)  # assign value to the next smallest number
                     col_rank = (col.rank(ascending=False) - 1) / (len(search_result) - 1)
-                elif encoding == "one_hot":
+                elif encoding == "sparse":
                     selection, is_negated = value
                     if any([v in col.values for v in selection]):
                         # Empty string has top ranking, and 'z' has bottom ranking

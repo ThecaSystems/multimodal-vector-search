@@ -47,7 +47,7 @@ def get_aux_encoding_schema() -> dict[str, str]:
             if data.df[col].apply(lambda x: isinstance(x, tuple)).any():
                 aux_encoding_schema[col] = "geolocation"
             else:
-                aux_encoding_schema[col] = "one_hot"
+                aux_encoding_schema[col] = "sparse"
         elif dtype in ("float64", "int64"):
             aux_encoding_schema[col] = "dense"
         else:
@@ -99,7 +99,7 @@ def plot_locations(result_df: pd.DataFrame, geolocation_column: str, point_q: tu
         longitudes.append(point_q[0])
         latitudes.append(point_q[1])
         map_data = pd.DataFrame({"longitude": longitudes, "latitude": latitudes, "colors": colors})
-        map_placeholder[geolocation_column].map(map_data, color="colors", zoom=7)
+        map_placeholder[geolocation_column].map(map_data, color="colors", zoom=6)
 
 
 args = get_args()
@@ -180,10 +180,11 @@ with col1:
             st.subheader(col3_title, divider="blue")
             aux_data = dict.fromkeys(st.session_state["aux_encoding_schema"].keys(), (None, 1.0))
             map_placeholder = dict()
+            st.write("")
             for index, (column, encoding) in enumerate(st.session_state["aux_encoding_schema"].items()):
-                with st.expander(f'Modality: :violet["**{column}**"]', expanded=True):
+                with st.expander(f'Modality: :violet["**{column}**"]'):
                     values = None
-                    if encoding == "one_hot":
+                    if encoding == "sparse":
                         selection = st.multiselect(
                             column,
                             options=sorted(data.df[column].unique(), key=lambda x: (x is not None, x)),
@@ -276,7 +277,7 @@ with col1:
                                 value = data.transformation_schema[column].transform(value)
                             values = (value, negation)
                     weight = st.slider(
-                        "Modality weight", 0.0, 10.0, 1.0, key=column + "_weight"
+                        "Modality weight", 0.0, 20.0, 1.0, key=column + "_weight"
                     )
                     aux_data[column] = (values, weight)
             print(aux_data)
