@@ -127,7 +127,7 @@ col1, col2, col3 = st.columns([0.25, 0.5, 0.25], gap="large")
 
 
 with col1:
-    st.subheader("Index products", divider="blue")
+    st.subheader("Index items", divider="blue")
     columns = [
         column
         for column in data.df.columns
@@ -139,7 +139,7 @@ with col1:
     if method != st.session_state["method"]:
         st.session_state["encoder"] = None
     st.session_state["method"] = method
-    if st.button("Index products"):
+    if st.button("Index items"):
         with st.status("Indexing dataset..."):
             start_time = time()
             st.session_state["aux_encoding_schema"] = get_aux_encoding_schema()
@@ -168,7 +168,7 @@ with col1:
             expander.write(st.session_state["aux_encoding_schema"])
         st.divider()
         st.subheader("Display options", divider="blue")
-        num_results = st.slider("Number of products to retrieve", 5, 50, 10)
+        num_results = st.slider("Number of items to retrieve", 5, 50, 10)
         display_columns = st.multiselect(
             "Select columns to display",
             data.df.columns,
@@ -283,9 +283,9 @@ with col1:
             print(aux_data)
 
 with col2:
-    st.subheader(f"Search {args.dataset.title()}", divider="blue")
+    st.subheader(f"Search in {args.dataset.title()}", divider="blue")
     if st.session_state["encoder"] is not None:
         query_text = st.text_input("Enter your search query", disabled=False)
         do_search(query_text, aux_data, display_columns)
     else:
-        query_text = st.text_input("Search for products", "Index products to enable search", disabled=True)
+        query_text = st.text_input("Enter your search query", "Index items to enable search", disabled=True)
