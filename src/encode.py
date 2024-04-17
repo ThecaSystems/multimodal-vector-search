@@ -29,7 +29,7 @@ class ModalityEncoder:
         text_encoding_schema: dict[str, float] = None,
         aux_encoding_schema: dict[str, str] = None,
         num_harmonics: int = 50,
-        epsilon: float = 0.0,
+        epsilon: float = 0.02,
     ):
         assert (
             text_embedding_dir is not None or text_encoding_schema is not None
@@ -394,8 +394,6 @@ class ModalityEncoder:
         """Create Fourier series in a vectorized manner."""
         if num_harmonics is None:
             num_harmonics = self.num_harmonics
-        if np.any(np.abs(values) > 1):
-            raise ValueError("All values should be in the range [-1, 1]")
 
         harmonics = np.arange(1, num_harmonics + 1)
         sigmas = self._sigma(harmonics, freq)
