@@ -1,5 +1,10 @@
 This is **FuseRank** - a framework for multimodal vector search in tabular data.
 
+It comes bundled with 2 public datasets:
+
+- [Flipkart](https://www.kaggle.com/datasets/atharvjairath/flipkart-ecommerce-dataset), containing 20K products from an Indian e-commerce platform
+- [Restaurants](https://www.kaggle.com/datasets/mohdshahnawazaadil/restaurant-dataset), containing data about more than 8K restaurants in India
+
 #### Setup instructions:
 
 1. Clone the repo 
