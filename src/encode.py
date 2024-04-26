@@ -28,8 +28,10 @@ class ModalityEncoder:
         text_embedding_dir: str = None,
         text_encoding_schema: dict[str, float] = None,
         aux_encoding_schema: dict[str, str] = None,
-        num_harmonics: int = 50,
-        epsilon: float = 0.02,
+        # Numerical filter settings
+        num_harmonics: int = 200,
+        interval_epsilon: float = 0.01,  # correction for the boundaries of the interval
+        range_epsilon: float = 0.02,  # correction for the boundaries of the whole range
     ):
         assert (
             text_embedding_dir is not None or text_encoding_schema is not None
@@ -39,7 +41,8 @@ class ModalityEncoder:
         self.aux_encoding_schema = aux_encoding_schema
         self.text_embedder = text_embedder
         self.num_harmonics = num_harmonics
-        self.epsilon = epsilon
+        self.interval_epsilon = interval_epsilon
+        self.range_epsilon = range_epsilon
         self.product_data = None
 
     def encode_products(self, data: pd.DataFrame, batch_size: int = 10, save_dir: str = None,
@@ -81,8 +84,7 @@ class ModalityEncoder:
                         axis=1,
                     )
                 elif encoding == "dense":
-                    min_value, max_value = data[column].min(), data[column].max()
-                    scaled_data = 2 * ((data[column] - min_value) / (max_value - min_value)) - 1
+                    scaled_data = (1 - self.range_epsilon) * self._scale(column)
                     full_circle_encoding = self._scalar_to_fourier_series(scaled_data.to_numpy())
                     half_circle_encoding = self._scalar_to_fourier_series(
                         scaled_data.to_numpy(), freq=np.pi / 2, num_harmonics=1
@@ -160,21 +162,22 @@ class ModalityEncoder:
                 elif encoding == "dense":
                     modality = np.zeros(self.num_harmonics * 2 + 4)  # 2 shift dimensions + 2 half-circle dimensions = 4
                     if value is not None:
-                        min_value, max_value = self.product_data[key].min(), self.product_data[key].max()
                         if len(value) < 3:  # not an interval filter -> use half-circle encoding
                             try:
                                 v, is_negated = value
                             except ValueError:
                                 v, is_negated = value[0], False
                             if v is not None:
-                                scaled_value = 2 * ((v - min_value) / (max_value - min_value)) - 1
+                                scaled_value = self._scale(key, v)
                                 modality[:3] = self._centroid_encoding(scaled_value)
                                 if is_negated:
                                     modality[:3] = -modality[:3]
-                        else:
+                        else:  # interval filter
                             lower_bound, upper_bound, is_negated = value
-                            lower_bound = 2 * ((lower_bound - min_value) / (max_value - min_value)) - 1 - self.epsilon
-                            upper_bound = 2 * ((upper_bound - min_value) / (max_value - min_value)) - 1 + self.epsilon
+                            lower_bound = (1 - self.range_epsilon) * (self._scale(key, lower_bound) -
+                                                                      self.interval_epsilon)
+                            upper_bound = (1 - self.range_epsilon) * (self._scale(key, upper_bound) +
+                                                                      self.interval_epsilon)
                             modality[3:] = self._interval_encoding(lower_bound, upper_bound)
                             if is_negated:
                                 modality[3:] = -modality[3:]
@@ -349,6 +352,13 @@ class ModalityEncoder:
         vector_scaled = input_vector * scaling_factor
         dot_max = np.dot(input_vector, vector_scaled)
         return np.append(vector_scaled, 1 - dot_max)
+
+    def _scale(self, column: str, value: int | float = None):
+        """Scale value or entire column to [-1, 1] range."""
+        min_value = self.product_data[column].min()
+        max_value = self.product_data[column].max()
+        input = self.product_data[column] if value is None else value
+        return 2 * ((input - min_value) / (max_value - min_value)) - 1
 
     @staticmethod
     def _null_indicator_dim(column: pd.Series) -> np.ndarray:
