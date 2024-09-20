@@ -8,11 +8,11 @@ with st.spinner("Loading libraries..."):
     import importlib
     import faiss
     import argparse
-    import requests
     from src import root_dir, load, encode
     from embed import TextEmbedder
     from typing import Any
     from time import time
+    from geopy.geocoders import Nominatim
 
 
 @st.cache_data
@@ -112,6 +112,7 @@ session_vars = [
     "encoder",
     "method",
     "ranking",
+    "nominatim",
 ]
 init_session_vars(session_vars)
 
@@ -205,10 +206,11 @@ with col1:
                         address = st.text_input("Enter your address:", key=column)
                         negation = st.checkbox("Negate", key=column + "_not")
                         if address:
-                            osm_url = f"https://nominatim.openstreetmap.org/search?format=json&q={address}"
-                            location_data = requests.get(osm_url).json()
-                            if location_data:
-                                latitude, longitude = float(location_data[0]["lat"]), float(location_data[0]["lon"])
+                            if st.session_state["nominatim"] is None:
+                                st.session_state["nominatim"] = Nominatim(user_agent="fuserank")
+                            location = st.session_state["nominatim"].geocode(address).raw
+                            if location:
+                                latitude, longitude = float(location['lat']), float(location['lon'])
                                 map_placeholder[column] = st.empty()
                                 values = (longitude, latitude, negation)
                             else:
