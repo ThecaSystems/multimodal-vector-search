@@ -129,15 +129,16 @@ class ModalityEncoder:
         with torch.no_grad():
             encoded_data = self.text_embedder.embed(query_text).numpy()
             encoded_data /= np.linalg.norm(encoded_data)
+            encoded_data = encoded_data.flatten()
         if method == "Retrieval":
             for key, (value, weight) in aux_data.items():
                 encoding = self.aux_encoding_schema[key]
                 if encoding == "sparse":
-                    unique_values = sorted(self.product_data[key].dropna().unique())  # pd.get_dummies sorts values
-                    selection, is_negated = value
-                    if selection is None or selection == []:
+                    unique_values = sorted(self.product_data[key].dropna().unique())  # pd.get_dummies sorts value
+                    if value is None:
                         modality = np.zeros(len(unique_values))  # don't do anything if no value was provided
                     else:
+                        selection, is_negated = value
                         modality = np.array([1 if v in selection else -1 for v in unique_values])
                         if is_negated:
                             modality = -modality
