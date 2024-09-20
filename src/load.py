@@ -40,3 +40,7 @@ class DataLoader(ABC):
         for col, obj in self.transformation_schema.items():
             transformed_df[col] = obj.data
         return transformed_df
+
+    @property
+    def name(self) -> str:
+        return self.__class__.__name__.lower()
