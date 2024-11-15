@@ -1,6 +1,6 @@
 from src.load import DataLoader
 from dataclasses import dataclass
-from src.transform import LogTransform
+from src.transform import LogTransform, get_best_transform
 
 
 @dataclass
@@ -34,6 +34,9 @@ class Restaurants(DataLoader):
             "Cuisines": 0.6,
         }
         self.transformation_schema = {
-            "Average Cost for two": LogTransform(self.df["Average Cost for two"]),
+            # "Average Cost for two": LogTransform(self.df["Average Cost for two"]),
             "Price range": LogTransform(self.df["Price range"]),
+            "Average Cost for two": get_best_transform(self.df["Average Cost for two"]),
+            "Votes": get_best_transform(self.df["Votes"]),
+            "Aggregate rating": get_best_transform(self.df["Aggregate rating"]),
         }
