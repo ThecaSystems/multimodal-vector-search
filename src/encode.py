@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 import torch
 import sys
-from scipy.integrate import quad
 from tqdm import tqdm
 from typing import Any
 from src import data_dir
@@ -428,10 +427,15 @@ class ModalityEncoder:
             return fourier_series
 
     def _integrate(self, lower_bound: float, upper_bound: float, k: int) -> tuple[float, float]:
-        norm_factor = 1 / (upper_bound - lower_bound)
+        """Compute definite integral analytically."""
+        a, b = lower_bound, upper_bound
+        norm_factor = 1 / (b - a)
+        sigma_factor = self._sigma(k)[0]
+        sin_term = (np.cos(a * np.pi * k) - np.cos(b * np.pi * k)) / ((np.pi * k) * (b - a))
+        cos_term = (np.sin(b * np.pi * k) - np.sin(a * np.pi * k)) / ((np.pi * k) * (b - a))
         return (
-            norm_factor * quad(lambda x: np.sin(k * np.pi * x) * self._sigma(k)[0], lower_bound, upper_bound,)[0],
-            norm_factor * quad(lambda x: np.cos(k * np.pi * x) * self._sigma(k)[0], lower_bound, upper_bound,)[0]
+            norm_factor * sin_term * sigma_factor,
+            norm_factor * cos_term * sigma_factor,
         )
 
     def _sigma(self, harmonics: np.ndarray | int, freq: float = np.pi) -> np.ndarray:
