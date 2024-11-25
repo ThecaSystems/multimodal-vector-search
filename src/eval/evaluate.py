@@ -32,19 +32,22 @@ from src.eval.ground_truth_experiment import GroundTruthExperiment
 
 #%%
 dataset = Restaurants()
+# dataset.df.reset_index(drop=True, inplace=True)
 model = 'mixedbread-ai/mxbai-embed-large-v1'
 # aux_modalities = dataset.df.columns[1:-1].tolist()
-# aux_modalities = ['City', 'Cuisines', 'Rating text']
-# aux_modalities = ['Has Table booking', 'Has Online delivery']
-aux_modalities = ['Average Cost for two', 'Price range', 'Aggregate rating', 'Votes']
+# aux_modalities = ['City', 'Cuisines', 'Rating text']  # categorical
+# aux_modalities = ['Has Table booking', 'Has Online delivery']  # boolean
+aux_modalities = ['Average Cost for two', 'Price range', 'Aggregate rating', 'Votes']  # numerical
+# aux_modalities = ['Location']
 text_modality = dataset.df.columns[0]
 
 #%%s
 # dataset = Bygghemma()
 # model = '/model'
-# excluded_columns = ['aggregateRatingValue', 'aggregateRatingCount', 'name', 'description', 'itemCondition', 'lowPrice', 'highPrice', 'geolocation', 'id', 'priceCurrency']
-# # aux_modalities = list(set(dataset.df.columns) - {'aggregateRatingValue', 'aggregateRatingCount', 'name', 'description', 'itemCondition', 'lowPrice', 'highPrice', 'geolocation', 'id', 'priceCurrency'})
-# aux_modalities = [col for col in dataset.df.columns if col not in excluded_columns]
+# # excluded_columns = ['aggregateRatingValue', 'aggregateRatingCount', 'name', 'description', 'itemCondition', 'lowPrice', 'highPrice', 'geolocation', 'id', 'priceCurrency']
+# # aux_modalities = [col for col in dataset.df.columns if col not in excluded_columns]
+# # aux_modalities = ['brand', 'category', 'seller', 'availability']  # categorical
+# aux_modalities = ['price']  # numerical
 # text_modality = 'name'
 
 #%%
@@ -70,9 +73,9 @@ def save_results(rankings: dict[int, list[int]], runtimes: dict[int, list[float]
 
 #%%
 # Experiment loop
-# exp = FaissExperiment(dataset, model, text_modality, aux_modalities)
-exp = MilvusExperiment(dataset, model, text_modality, aux_modalities)
+exp = FaissExperiment(dataset, model, text_modality, aux_modalities)
 # exp = GroundTruthExperiment(dataset, model, text_modality, aux_modalities)
+# exp = MilvusExperiment(dataset, model, text_modality, aux_modalities)
 
 # experiments = [
 #     # GroundTruthExperiment(dataset, model, text_modality, aux_modalities),
@@ -99,7 +102,7 @@ for num_modalities in range(0, num_modalities + 1):
         random_id = dataset.df.sample(random_state=seed).index[0]
         random_mods = rng.choice(aux_modalities, size=num_modalities if num_modalities > 0 else 1, replace=False)
         print(f"\nSelected modalities: {random_mods}")
-        ranking, runtime = exp.run_experiment(random_id, random_mods.tolist())
+        ranking, runtime = exp.run_experiment(random_id, random_mods.tolist(), limit=20)
         if num_modalities > 0:
             rankings[num_modalities].append(ranking)
             runtimes[num_modalities].append(runtime)
