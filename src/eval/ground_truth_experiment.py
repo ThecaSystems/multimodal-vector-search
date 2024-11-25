@@ -69,7 +69,7 @@ class GroundTruthExperiment:
                 aux_encoding_schema[col] = "binary"
             elif dtype in ("object", "category"):
                 if self.dataset.df[col].apply(lambda x: isinstance(x, tuple)).any():
-                    continue
+                    aux_encoding_schema[col] = "geolocation"
                 else:
                     aux_encoding_schema[col] = "sparse"
             elif dtype in ("float64", "int64"):
@@ -108,6 +108,17 @@ class GroundTruthExperiment:
             elif self.aux_encoding_schema[col] == "binary":
                 df = df[df[col] == value]
                 filters.append(f"{col} == {value}")
+            elif self.aux_encoding_schema[col] == "geolocation":  # only works with Restaurants!
+                # city = self.dataset.df.loc[random_id, "City"]
+                # if city is None:
+                #     city = ''
+                # df = df[df["City"] == city]
+                # filters.append(f"City == {city}")
+                ref_point = self.dataset.df.loc[random_id, "Location"]
+                df['Proximity'] = df['Location'].apply(
+                    lambda point: abs(point[0] - ref_point[0]) + abs(point[1] - ref_point[1]))
+                df = df.nsmallest(1000, 'Proximity')
+                filters.append(f"{col} == {ref_point}")
         return df.index.tolist(), " & ".join(filters)
 
     def run_experiment(self, random_id: int, random_mods: list[str], limit: int = 10) -> (list[dict], float):
@@ -146,7 +157,8 @@ class GroundTruthExperiment:
 
         # print(f'Number of results: {len(res_ids)}')
         for i in range(len(res_ids)):
-            title = f", text: {self.dataset.df.at[res_ids[i], self.main_mod]}, "
-            attributes = ", ".join([f'{mod}: {self.dataset.df.at[res_ids[i], mod]}' for mod in random_mods])
-            print(f"Top {i}: id: {res_ids[i]}, rel: {res_rel[i]:.4f}" + title + attributes)
+            title = f", text: {self.dataset.df.iloc[res_ids[i]][self.main_mod]}, "
+            attributes = ", ".join([f'{mod}: {self.dataset.df.iloc[res_ids[i]][mod]}' for mod in random_mods])
+            # city = f"{self.dataset.df.iloc[res_ids[i]]['City']}"
+            print(f"Top {i}: id: {res_ids[i]}, rel: {res_rel[i]:.4f}" + title + "{ " + attributes + " }")
         return res_ids, runtime
