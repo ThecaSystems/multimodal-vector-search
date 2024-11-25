@@ -56,13 +56,12 @@ def evaluate_rankings(folder: str):
     filter_sizes = engine_rankings['faiss'].keys()
     recalls_per_size = dict.fromkeys(filter_sizes)
     for size in filter_sizes:
-        recalls_per_size[size] = get_recall(engine_rankings['milvus'][size], engine_rankings['faiss'][size])
+        recalls_per_size[size] = get_recall(engine_rankings['groundtruth'][size], engine_rankings['faiss'][size])
     return recalls_per_size
     # for rankings1, rankings2 in zip(engine_rankings[0], engine_rankings[1]):
 
 #%%
 # plot_runtimes('bygghemma')
-
 recalls = evaluate_rankings('restaurants')
 print(recalls)
 print(f'Total recall: {np.mean(list(recalls.values()))}')
