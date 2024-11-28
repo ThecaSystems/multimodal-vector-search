@@ -1,4 +1,5 @@
 import os
+import yaml
 import numpy as np
 import pickle
 
@@ -62,6 +63,8 @@ def evaluate_rankings(folder: str):
 
 #%%
 # plot_runtimes('bygghemma')
-recalls = evaluate_rankings('restaurants')
+with open('config.yaml', 'r') as file:
+    config = yaml.safe_load(file)
+recalls = evaluate_rankings(config['dataset'])
 print(recalls)
 print(f'Total recall: {np.mean(list(recalls.values()))}')

@@ -1,0 +1,6 @@
+dataset: restaurants # restaurants, flipkart
+modalities: numerical # numerical, binary, categorical
+experiment: faiss # faiss, truth
+num_repetitions: 10
+num_results: 10
+num_harmonics: 150
