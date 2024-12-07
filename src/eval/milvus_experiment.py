@@ -32,7 +32,7 @@ class MilvusExperiment:
             aux_mods: list[str],
     ) -> None:
         self.dataset = dataset
-        self.dataset.df.reset_index(drop=True, inplace=True)
+        # dataset.df.reset_index(drop=True, inplace=True)
         self.text_embedder = self.get_embedder(model_path_or_name)
         self.main_mod = main_mod
         self.aux_encoding_schema = self.make_aux_encoding_schema(aux_mods)
@@ -130,7 +130,7 @@ class MilvusExperiment:
                         value = ''
                     filters.append(f"{col_milvus} == {json.dumps(value, ensure_ascii=False)}")  # json handles ' and " in value
                 elif self.aux_encoding_schema[col] == "binary":
-                    if self.dataset.df[col].dtype in ("object", "category"):  # not for bool
+                    if self.dataset.df[col].dtype in ("object", "category"):
                         value = json.dumps(value, ensure_ascii=False)
                     filters.append(f"{col_milvus} == {value}")
         return " && ".join(filters)
@@ -219,11 +219,16 @@ class MilvusExperiment:
 
         print(f"Query execution time: {runtime}")
         print(f'Number of results: {len(res[0])}')
-
         res_ids = []
+
         for i, r in enumerate(res[0]):
-            title = f", text: {self.dataset.df.at[r['id'], self.main_mod]}, "
-            attributes = ", ".join([f'{mod}: {self.dataset.df.at[r["id"], mod]}' for mod in random_mods])
-            print(f"Top {i}: id: {r['id']}, rel: {r['distance']:.4f}" + title + attributes)
+            title = f", text: {self.dataset.df.iloc[r['id']][self.main_mod]}, "
+            attributes = ", ".join([f'{mod}: {self.dataset.df.iloc[r["id"]][mod]}' for mod in random_mods])
+            print(f"Top {i}: id: {r['id']}, rel: {r['distance']:.4f}" + title + "{ " + attributes + " }")
             res_ids.append(r['id'])
+
+        # for i, r in enumerate(res[0]):
+        #     print("Top {}: {}".format(i, r))
+        #     res_ids.append(r['id'])
+
         return res_ids, runtime

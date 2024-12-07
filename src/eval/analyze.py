@@ -28,22 +28,27 @@ def plot_runtimes(folder: str) -> None:
     plt.show(block=True)
 
 #%%
-def get_recall(list1: list[list[int]], list2: list[list[int]]):
+def get_recall(list1: list[int], list2: list[int]) -> float:
     """Get recall for list2 with respect to list1."""
+
+    if len(list1) > 0:
+        true_positives = len(set(list1) & set(list2))
+        false_negatives = len(set(list1) - set(list2))
+
+        # Calculate recall
+        if true_positives + false_negatives > 0:
+            recall = true_positives / (true_positives + false_negatives)
+        else:
+            recall = 0.0  # Handle case where there are no true positives
+
+    return recall
+
+#%%
+def get_mean_recall(list1: list[list[int]], list2: list[list[int]]) -> float:
+    """Get mean recall for list2 with respect to list1."""
     recalls = []
-
     for sublist1, sublist2 in zip(list1, list2):
-        if len(sublist1) > 0:
-            true_positives = len(set(sublist1) & set(sublist2))
-            false_negatives = len(set(sublist1) - set(sublist2))
-
-            # Calculate recall
-            if true_positives + false_negatives > 0:
-                recall = true_positives / (true_positives + false_negatives)
-            else:
-                recall = 0.0  # Handle case where there are no true positives
-            recalls.append(recall)
-
+        recalls.append(get_recall(sublist1, sublist2))
     return np.mean(recalls)
 
 #%%
@@ -57,14 +62,15 @@ def evaluate_rankings(folder: str):
     filter_sizes = engine_rankings['faiss'].keys()
     recalls_per_size = dict.fromkeys(filter_sizes)
     for size in filter_sizes:
-        recalls_per_size[size] = get_recall(engine_rankings['groundtruth'][size], engine_rankings['faiss'][size])
+        recalls_per_size[size] = get_mean_recall(engine_rankings['groundtruth'][size], engine_rankings['faiss'][size])
     return recalls_per_size
     # for rankings1, rankings2 in zip(engine_rankings[0], engine_rankings[1]):
 
 #%%
-# plot_runtimes('bygghemma')
-with open('config.yaml', 'r') as file:
-    config = yaml.safe_load(file)
-recalls = evaluate_rankings(config['dataset'])
-print(recalls)
-print(f'Total recall: {np.mean(list(recalls.values()))}')
+if __name__ == "__main__":
+    # plot_runtimes('bygghemma')
+    with open('config.yaml', 'r') as file:
+        config = yaml.safe_load(file)
+    recalls = evaluate_rankings(config['dataset'])
+    print(recalls)
+    print(f'Total recall: {np.mean(list(recalls.values()))}')

@@ -2,6 +2,7 @@ import os
 import json
 import pickle
 import tempfile
+import copy
 import faiss
 import numpy as np
 import pandas as pd
@@ -29,7 +30,6 @@ class GroundTruthExperiment:
             aux_mods: list[str],
     ) -> None:
         self.dataset = dataset
-        self.dataset.df.reset_index(drop=True, inplace=True)
         self.text_embedder = self.get_embedder(model_path_or_name)
         self.main_mod = main_mod
         self.aux_encoding_schema = self.make_aux_encoding_schema(aux_mods)
@@ -91,7 +91,8 @@ class GroundTruthExperiment:
 
     def get_filtered_ids(self, random_id: int, random_mods: list[str]) -> (list[int], str):
         filters = []
-        df = self.dataset.df
+        df = self.dataset.df.copy()
+        df.reset_index(drop=True, inplace=True)
         for col in random_mods:
             value = self.dataset.df.loc[random_id, col]
             if self.aux_encoding_schema[col] == "dense":
@@ -102,8 +103,9 @@ class GroundTruthExperiment:
                 filters.append(f"{col} <= {value}")
             elif self.aux_encoding_schema[col] == "sparse":
                 if value is None:
-                    value = ''
-                df = df[df[col] == value]
+                    df = df[df[col].isnull()]
+                else:
+                    df = df[df[col] == value]
                 filters.append(f"{col} == {value}")
             elif self.aux_encoding_schema[col] == "binary":
                 df = df[df[col] == value]

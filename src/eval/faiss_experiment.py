@@ -32,10 +32,9 @@ class FaissExperiment:
             num_harmonics: int = 200
     ) -> None:
         self.dataset = dataset
-        # dataset.df.reset_index(drop=True, inplace=True)
         self.text_embedder = self.get_embedder(model_path_or_name)
         self.main_mod = main_mod
-        self.num_harmonics = num_harmonics
+        self.num_harmonics = num_harmonics or 200  # in case num_harmonics is None
         self.aux_encoding_schema = self.make_aux_encoding_schema(aux_mods)
         self.client = None
         self.encoder = None
