@@ -101,6 +101,14 @@ def plot_locations(result_df: pd.DataFrame, geolocation_column: str, point_q: tu
         map_data = pd.DataFrame({"longitude": longitudes, "latitude": latitudes, "colors": colors})
         map_placeholder[geolocation_column].map(map_data, color="colors", zoom=6)
 
+@st.dialog("Dataset selection")
+def prompt_for_dataset():
+    dataset = st.selectbox("Choose a dataset", ["Flipkart", "Restaurants"])
+    if st.button("Load"):
+        st.session_state["dataset"] = dataset
+        st.rerun()
+    else:
+        st.stop()
 
 args = get_args()
 
@@ -113,19 +121,22 @@ session_vars = [
     "method",
     "ranking",
     "nominatim",
+    "dataset",
 ]
+
 init_session_vars(session_vars)
 
-with st.spinner("Loading dataset..."):
-    data = load_data(args.dataset)
-
+if st.session_state["dataset"] is None:
+    if args.dataset is None or args.dataset == "":
+        prompt_for_dataset()
+    else:
+        st.session_state["dataset"] = args.dataset
+data = load_data(st.session_state["dataset"])
 
 with st.spinner("Loading model..."):
     text_embedder = load_model(args.model)
 
-
 col1, col2, col3 = st.columns([0.25, 0.5, 0.25], gap="large")
-
 
 with col1:
     st.subheader("Index items", divider="blue")
@@ -147,13 +158,13 @@ with col1:
             st.write("Encoding products...")
             st.session_state["encoder"] = encode.ModalityEncoder(
                 text_embedder=text_embedder,
-                text_embedding_dir=args.dataset,
+                text_embedding_dir=st.session_state["dataset"],
                 text_encoding_schema=data.text_encoding_schema,
                 aux_encoding_schema=st.session_state["aux_encoding_schema"],
             )
             encoded_products = st.session_state["encoder"].encode_products(
                 data=data.transformed_df,
-                save_dir=args.dataset,
+                save_dir=st.session_state["dataset"],
                 method=st.session_state["method"],
             )
             st.write("Indexing products...")
@@ -285,7 +296,7 @@ with col1:
             print(aux_data)
 
 with col2:
-    st.subheader(f"Search in {args.dataset.title()}", divider="blue")
+    st.subheader(f"Search in {st.session_state['dataset']}", divider="blue")
     if st.session_state["encoder"] is not None:
         query_text = st.text_input("Enter your search query", disabled=False)
         do_search(query_text, aux_data, display_columns)
