@@ -29,12 +29,14 @@ class FaissExperiment:
             model_path_or_name: str,
             main_mod: str,
             aux_mods: list[str],
-            num_harmonics: int = 200
+            num_harmonics,
+            interval_epsilon,
     ) -> None:
         self.dataset = dataset
         self.text_embedder = self.get_embedder(model_path_or_name)
         self.main_mod = main_mod
-        self.num_harmonics = num_harmonics or 200  # in case num_harmonics is None
+        self.num_harmonics = num_harmonics
+        self.interval_epsilon = interval_epsilon
         self.aux_encoding_schema = self.make_aux_encoding_schema(aux_mods)
         self.client = None
         self.encoder = None
@@ -53,6 +55,7 @@ class FaissExperiment:
             text_encoding_schema=self.dataset.text_encoding_schema,
             aux_encoding_schema=self.aux_encoding_schema,
             num_harmonics=self.num_harmonics,
+            interval_epsilon=self.interval_epsilon,
         )
         return encoder
 

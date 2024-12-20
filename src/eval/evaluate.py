@@ -274,76 +274,165 @@ def setup_data(dataset_name: str) -> (pd.DataFrame, str, list[str]):
 #     return pd.DataFrame(data)
 
 #%%
-def evaluate(dataset: DataLoader, text_modality: str, aux_modalities: list[str]) -> pd.DataFrame:
+# def evaluate(dataset: DataLoader, text_modality: str, aux_modalities: list[str]) -> pd.DataFrame:
+#     num_modalities = len(aux_modalities)
+#     num_repetitions = config['num_repetitions']
+#     harmonics = config['harmonics'] if config['modalities'] == 'numerical' else [None]
+#     model = 'mixedbread-ai/mxbai-embed-large-v1'
+#     data = []
+#     for num_harmonics in harmonics:
+#         exp_truth = GroundTruthExperiment(dataset, model, text_modality, aux_modalities)
+#         exp_faiss = FaissExperiment(dataset, model, text_modality, aux_modalities, num_harmonics)
+#         for num_modalities in range(1, num_modalities + 1):
+#             print(f"Number of modalities: {num_modalities}")
+#             recalls = []
+#             for i in tqdm(range(num_repetitions), desc="Repetitions"):
+#                 seed = int(str(num_modalities) + str(i))
+#                 rng = np.random.default_rng(seed=seed)
+#                 random_id = dataset.df.sample(random_state=seed).index[0]
+#                 random_mods = rng.choice(aux_modalities, size=num_modalities if num_modalities > 0 else 1, replace=False)
+#                 print(f"\nSelected modalities: {random_mods}")
+#                 ranking_truth, _ = exp_truth.run_experiment(random_id, random_mods.tolist(), limit=config['num_results'])
+#                 ranking_faiss, _ = exp_faiss.run_experiment(random_id, random_mods.tolist(), limit=config['num_results'])
+#                 recalls.append(get_recall(ranking_truth, ranking_faiss))
+#             for recall in recalls:
+#                 data.append({
+#                     'num_harmonics': num_harmonics,
+#                     'num_modalities': num_modalities,
+#                     'recall': recall,
+#                     'dataset': dataset.name.title()
+#                 })
+#     return pd.DataFrame(data)
+
+#%%
+def evaluate(
+        dataset: DataLoader,
+        text_modality: str,
+        aux_modalities: list[str],
+        result_data: list[dict],
+        num_harmonics: int = 200,
+        interval_epsilon: float = 0.015,
+        ) -> None:
     num_modalities = len(aux_modalities)
     num_repetitions = config['num_repetitions']
-    harmonics = config['harmonics'] if config['modalities'] == 'numerical' else [None]
     model = 'mixedbread-ai/mxbai-embed-large-v1'
-    data = []
-    for num_harmonics in harmonics:
-        exp_truth = GroundTruthExperiment(dataset, model, text_modality, aux_modalities)
-        exp_faiss = FaissExperiment(dataset, model, text_modality, aux_modalities, num_harmonics)
-        for num_modalities in range(1, num_modalities + 1):
-            print(f"Number of modalities: {num_modalities}")
-            recalls = []
-            for i in tqdm(range(num_repetitions), desc="Repetitions"):
-                seed = int(str(num_modalities) + str(i))
-                rng = np.random.default_rng(seed=seed)
-                random_id = dataset.df.sample(random_state=seed).index[0]
-                random_mods = rng.choice(aux_modalities, size=num_modalities if num_modalities > 0 else 1, replace=False)
-                print(f"\nSelected modalities: {random_mods}")
-                ranking_truth, _ = exp_truth.run_experiment(random_id, random_mods.tolist(), limit=config['num_results'])
-                ranking_faiss, _ = exp_faiss.run_experiment(random_id, random_mods.tolist(), limit=config['num_results'])
-                recalls.append(get_recall(ranking_truth, ranking_faiss))
-            for recall in recalls:
-                data.append({
-                    'num_harmonics': num_harmonics,
-                    'num_modalities': num_modalities,
-                    'recall': recall,
-                    'dataset': dataset.name.title()
-                })
-    return pd.DataFrame(data)
+    exp_truth = GroundTruthExperiment(dataset, model, text_modality, aux_modalities)
+    exp_faiss = FaissExperiment(dataset, model, text_modality, aux_modalities, num_harmonics, interval_epsilon)
+    for num_modalities in range(1, num_modalities + 1):
+        print(f"Number of modalities: {num_modalities}")
+        recalls = []
+        for i in tqdm(range(num_repetitions), desc="Repetitions"):
+            seed = int(str(num_modalities) + str(i))
+            rng = np.random.default_rng(seed=seed)
+            random_id = dataset.df.sample(random_state=seed).index[0]
+            random_mods = rng.choice(aux_modalities, size=num_modalities if num_modalities > 0 else 1, replace=False)
+            print(f"\nSelected modalities: {random_mods}")
+            ranking_truth, _ = exp_truth.run_experiment(random_id, random_mods.tolist(), limit=config['num_results'])
+            ranking_faiss, _ = exp_faiss.run_experiment(random_id, random_mods.tolist(), limit=config['num_results'])
+            recalls.append(get_recall(ranking_truth, ranking_faiss))
+        for recall in recalls:
+            result_data.append({
+                'num_harmonics': num_harmonics,
+                'interval_epsilon': interval_epsilon,
+                'num_modalities': num_modalities,
+                'recall': recall,
+                'dataset': dataset.name.title()
+            })
 
 #%%
 def print_results(results: list[pd.DataFrame]):
     for i, df in enumerate(results):
         print(f"\nResults for {config['dataset'][i]}:")
         if config['modalities'] == 'numerical':
-            print (df.groupby(['num_harmonics', 'num_modalities']).agg(recall=('recall', 'mean')).reset_index())
-            print (df.groupby('num_harmonics').agg(recall=('recall', 'mean')).reset_index())
+            print(df.groupby(['num_harmonics', 'interval_epsilon', 'num_modalities']).agg(
+                recall=('recall', 'mean')).reset_index())
+            print("Recall vs. num_harmonics")
+            print(df.groupby('num_harmonics').agg(recall=('recall', 'mean')).reset_index())
+            print("Recall vs. interval_epsilon")
+            print(df.groupby('interval_epsilon').agg(recall=('recall', 'mean')).reset_index())
         else:
-            print (df.groupby('num_modalities').agg(recall=('recall', 'mean')).reset_index())
-        # print(mean_recall_df)
-        # print(f"Average total recall: {mean_recall_df['recall'].mean()}")
+            print("Recall vs. num_modalities")
+            print(df.groupby('num_modalities').agg(recall=('recall', 'mean')).reset_index())
 
 #%%
-def plot_results(results: list[pd.DataFrame]):
+# def plot_results(results: list[pd.DataFrame]):
+#     df = pd.concat(results, axis=0, ignore_index=True)
+#     plt.figure(figsize=(10, 6))
+#     sns.lineplot(data=df, x='num_harmonics', y='recall', hue='dataset', style='dataset', markers=True, dashes=False,
+#                  markersize=8, estimator='mean')
+#     plt.xticks(df['num_harmonics'])  # Ensure x-ticks match num_harmonics
+#     plt.xlabel('Number of Harmonics', fontsize=14)  # Increase font size for x-axis
+#     plt.ylabel('Recall (mean)', fontsize=14)      # Increase font size for y-axis
+#     plt.title('Recall for numerical filters', fontsize=16)  # Increase font size for title
+#     plt.grid()
+#     plt.legend(fontsize='14')
+#     plt.show(block=True)
+
+#%%
+def plot_results(results: list[pd.DataFrame], x_column: str, x_label: str):
     df = pd.concat(results, axis=0, ignore_index=True)
     plt.figure(figsize=(10, 6))
-    sns.lineplot(data=df, x='num_harmonics', y='recall', hue='dataset', style='dataset', markers=True, dashes=False,
-                 markersize=8, estimator='mean')
-    plt.xticks(df['num_harmonics'])  # Ensure x-ticks match num_harmonics
-    plt.xlabel('Number of Harmonics', fontsize=14)  # Increase font size for x-axis
-    plt.ylabel('Recall (mean)', fontsize=14)      # Increase font size for y-axis
-    plt.title('Recall for numerical filters', fontsize=16)  # Increase font size for title
-    plt.grid()
+    sns.lineplot(data=df, x=x_column, y='recall', hue='dataset', style='dataset', markers=True, dashes=False,
+                 markersize=10, estimator='mean')
+    plt.xticks(df[x_column], fontsize=12)
+    plt.tick_params(axis='y', labelsize=12)
+    plt.xlabel(x_label, fontsize=14)
+    plt.ylabel('Recall (mean)', fontsize=14)
+    plt.title('Recall for numerical filters', fontsize=16)
+    plt.grid(axis='y')
     plt.legend(fontsize='14')
     plt.show(block=True)
 
 #%%
 results = []
+results_harmonics = []
+results_epsilon = []
 for dataset_name in config['dataset']:
     dataset, text_modality, aux_modalities = setup_data(dataset_name)
-    df = evaluate(dataset, text_modality, aux_modalities)
-    results.append(df)
-    # plt.plot(recall_mean['num_harmonics'], recall_mean['recall'], marker='o')
-    # plt.errorbar(recall_mean['num_harmonics'], recall_mean['recall'],
-    #              yerr=recall_mean['std_dev'], fmt='o', capsize=5, label='Mean Recall ± Std Dev')
-
-    # plt.xticks(recall_mean['num_harmonics'])  # Ensure x-ticks match num_harmonics
-print_results(results)
+    if config['modalities'] == 'numerical':
+        out_data_harmonics = []
+        out_data_epsilon = []
+        for i in config['num_harmonics']:
+            evaluate(dataset, text_modality, aux_modalities, out_data_harmonics, num_harmonics=i)
+        results_harmonics.append(pd.DataFrame(out_data_harmonics))
+        for i in config['interval_epsilon']:
+            evaluate(dataset, text_modality, aux_modalities, out_data_epsilon, interval_epsilon=i)
+        results_epsilon.append(pd.DataFrame(out_data_epsilon))
+    else:
+        out_data = []
+        evaluate(dataset, text_modality, aux_modalities, out_data)
+        results.append(pd.DataFrame(out_data))
 if config['modalities'] == 'numerical':
-    plot_results(results)
+    print_results(results_harmonics)
+    print_results(results_epsilon)
+    plot_results(results_harmonics, x_column='num_harmonics', x_label='Number of harmonics')
+    plot_results(results_epsilon, x_column='interval_epsilon', x_label='Epsilon')
+else:
+    print_results(results)
+
+#%%
+# def evaluate_numerical(x_column: str, x_label: str):
+#     results = []
+#     for dataset_name in config['dataset']:
+#         result_data = []
+#         dataset, text_modality, aux_modalities = setup_data(dataset_name)
+#         for i in config[x_column]:
+#             kwargs = {x_column: i}
+#             evaluate(dataset, text_modality, aux_modalities, result_data, **kwargs)
+#         results.append(pd.DataFrame(result_data))
+#     return results
+
+#%%
+# if config['modalities'] == 'numerical':
+#     results = evaluate_numerical('num_harmonics', 'Number of harmonics')
+#     print_results(results)
+#     plot_results(results, x_column='num_harmonics', x_label='Number of harmonics')
+#     results = evaluate_numerical('interval_epsilon', 'Epsilon')
+#     print_results(results)
+#     plot_results(results, x_column='interval_epsilon', x_label='Epsilon')
+# else:
+#
+#     evaluate(dataset, text_modality, aux_modalities, result_data,
 
 #%%
 # # Plot recall vs number of harmonics
