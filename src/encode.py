@@ -18,7 +18,7 @@ class ModalityEncoder:
     Supported auxiliary encodings for multimodal retrieval:
     'sparse': a one-hot encoding for categorical data; allows the selection of multiple categories at query time
     'dense': a 2-dimensional dense vector encoding for numerical data
-    'binary': a binary encoding for boolean data, takes values {-1, 1}
+    'binary': a binary encoding for data with exactly two distinct values
     """
 
     def __init__(
