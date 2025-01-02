@@ -105,7 +105,7 @@ def plot_locations(result_df: pd.DataFrame, geolocation_column: str, point_q: tu
 def prompt_for_dataset():
     dataset = st.selectbox("Choose a dataset", ["Flipkart", "Restaurants"])
     if st.button("Load"):
-        st.session_state["dataset"] = dataset
+        st.session_state["dataset"] = dataset.lower()
         st.rerun()
     else:
         st.stop()
