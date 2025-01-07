@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 
 matplotlib.use("macosx")
 
-with open("config.yaml", "r") as file:
+with open("src/eval/config.yaml", "r") as file:
     config = yaml.safe_load(file)
 
 
