@@ -30,7 +30,7 @@ class ModalityEncoder:
         # Numerical filter settings
         num_harmonics: int = 200,
         interval_epsilon: float = 0.01,  # correction for the boundaries of the interval
-        range_epsilon: float = 0.02,  # correction for the boundaries of the whole range
+        range_epsilon: float = 0.01,  # correction for the boundaries of the whole range
     ):
         assert (
             text_embedding_dir is not None or text_encoding_schema is not None
