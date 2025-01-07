@@ -1,4 +1,4 @@
-This is **FuseRank** - a framework for multimodal vector search in tabular data.
+This is **FuseRank** - a framework for multimodal vector search in tabular data with filter support.
 
 It comes bundled with 2 public datasets:
 
@@ -21,4 +21,13 @@ It comes bundled with 2 public datasets:
 
 ``streamlit run src/app.py -- --dataset=flipkart --model=mixedbread-ai/mxbai-embed-large-v1``
 
-More detailed information on how to configure FuseRank is coming soon...
+If no dataset is specified in the command line, the user will be prompted to choose a dataset upon app launch:
+
+``streamlit run src/app.py -- --model=mixedbread-ai/mxbai-embed-large-v1``
+
+#### Evaluation:
+
+The code for the experiments reported in the FuseRank paper resides in ``src/eval`` folder. The experiments are controlled
+by the ``config.yaml`` file. The evaluation procedure can be launched as follows:
+
+``python src/eval/evaluate.py``
