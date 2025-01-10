@@ -10,7 +10,6 @@ from src.load_restaurants import Restaurants
 from src.load_flipkart import Flipkart
 from src.eval.faiss_experiment import FaissExperiment
 from src.eval.ground_truth_experiment import GroundTruthExperiment
-from src.eval.analyze import get_recall
 import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
