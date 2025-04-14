@@ -228,7 +228,7 @@ class ModalityEncoder:
                         col = col.apply(lambda x: sys.float_info.min if lower_bound <= x <= upper_bound else x)
                         col = col.fillna(sys.float_info.max)
                         is_ascending = is_negated
-                    col_rank = (col.rank(ascending=is_ascending) - 1) / (len(search_result) - 1)
+                    col_rank = 2 * (col.rank(ascending=is_ascending) - 1) / (len(search_result) - 1) - 1
                 elif encoding == "geolocation":
                     longitude, latitude, is_negated = value
                     is_ascending = not is_negated
@@ -243,7 +243,7 @@ class ModalityEncoder:
                         axis=1,
                     )
                     col = pd.Series(np.dot(col_vec, query_vec), index=col.index)
-                    col_rank = (col.rank(ascending=is_ascending) - 1) / (len(search_result) - 1)
+                    col_rank = 2 * (col.rank(ascending=is_ascending) - 1) / (len(search_result) - 1) - 1
                 elif encoding == "binary":
                     if isinstance(value, str):
                         col = col.replace(value, " ")  # assign value to the smallest char
@@ -251,7 +251,7 @@ class ModalityEncoder:
                     else:
                         col = col.replace(value, -np.inf)  # assign value to the smallest number
                         col = col.fillna(-sys.float_info.max)  # assign value to the next smallest number
-                    col_rank = (col.rank(ascending=False) - 1) / (len(search_result) - 1)
+                    col_rank = 2 * (col.rank(ascending=False) - 1) / (len(search_result) - 1) - 1
                 elif encoding == "sparse":
                     selection, is_negated = value
                     if any([v in col.values for v in selection]):
@@ -259,7 +259,7 @@ class ModalityEncoder:
                         col = col.replace(selection, " ")
                         # col = col.replace(set(col.values) - set(selection), "_")  # treat all mismatches the same
                         col = col.fillna("\'")  # treat missing values differently (either above or below the rest)
-                        col_rank = (col.rank(ascending=is_negated) - 1) / (len(search_result) - 1)
+                        col_rank = 2 * (col.rank(ascending=is_negated) - 1) / (len(search_result) - 1) - 1
                     else:
                         continue
                 else:
