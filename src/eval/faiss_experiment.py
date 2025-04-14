@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from typing import Any
 from src.load import DataLoader
@@ -57,7 +58,7 @@ class FaissExperiment(Experiment):
                     filters[col] = location + (False,), 1.0
         return filters
 
-    def get_results(self, random_id: int, random_mods: list[str], limit: int = 10) -> (list[dict], float):
+    def get_results(self, random_id: int, random_mods: list[str], limit: int = 10) -> (np.array, np.array):
         # Let query be the product name of the sampled row
         query_text = self.dataset.df.loc[random_id, self.main_mod]
         print(f"\nQuery: {query_text}\n")

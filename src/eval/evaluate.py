@@ -9,7 +9,8 @@ from src.load import DataLoader
 from src.load_restaurants import Restaurants
 from src.load_flipkart import Flipkart
 from src.eval.faiss_experiment import FaissExperiment
-from src.eval.ground_truth_experiment import GroundTruthExperiment
+from src.eval.milvus_experiment import MilvusExperiment
+from src.eval.analyze import get_recall
 import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
@@ -82,7 +83,7 @@ def evaluate(
     num_modalities = len(aux_modalities)
     num_repetitions = config["num_repetitions"]
     model = "mixedbread-ai/mxbai-embed-large-v1"
-    exp_truth = GroundTruthExperiment(dataset, model, text_modality, aux_modalities)
+    exp_milvus = MilvusExperiment(dataset, model, text_modality, aux_modalities, num_harmonics, interval_epsilon)
     exp_faiss = FaissExperiment(dataset, model, text_modality, aux_modalities, num_harmonics, interval_epsilon)
     for num_modalities in range(1, num_modalities + 1):
         print(f"Number of modalities: {num_modalities}")
@@ -97,9 +98,9 @@ def evaluate(
                 replace=False,
             )
             print(f"\nSelected modalities: {random_mods}")
-            ranking_truth = exp_truth.run_experiment(random_id, random_mods.tolist(), limit=config["num_results"])
+            ranking_milvus = exp_milvus.run_experiment(random_id, random_mods.tolist(), limit=config["num_results"])
             ranking_faiss = exp_faiss.run_experiment(random_id, random_mods.tolist(), limit=config["num_results"])
-            recalls.append(get_recall(ranking_truth, ranking_faiss))
+            recalls.append(get_recall(ranking_milvus, ranking_faiss))
         for recall in recalls:
             result_data.append(
                 {
@@ -189,6 +190,6 @@ if __name__ == "__main__":
         print_results(results_harmonics)
         print_results(results_epsilon)
         plot_results(results_harmonics, x_column="num_harmonics", x_label="Number of harmonics")
-        plot_results(results_epsilon, x_column="interval_epsilon", x_label="Epsilon")
+        plot_results(results_epsilon, x_column="interval_epsilon", x_label="Interval offset ε")
     else:
         print_results(results)
