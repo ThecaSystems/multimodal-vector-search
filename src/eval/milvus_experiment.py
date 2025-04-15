@@ -43,8 +43,9 @@ class MilvusExperiment(Experiment):
             for col in self.aux_encoding_schema.keys():
                 col_name = col.replace(" ", "_").lower()
                 col_value = self.dataset.df.iloc[i][col]
-
-                if self.aux_encoding_schema[col] == "dense":
+                if not col_value:
+                    milvus_metadata[col_name] = "__EMPTY__"  # Milvus needs special treatment of empty values
+                elif self.aux_encoding_schema[col] == "dense":
                     milvus_metadata[col_name] = float(col_value)
                 elif self.aux_encoding_schema[col] in ("sparse", "binary"):
                     milvus_metadata[col_name] = str(col_value)
@@ -81,10 +82,11 @@ class MilvusExperiment(Experiment):
                         value = self.dataset.df[col].max()
                     filters.append(f"{col_milvus} <= {value}")
                 elif self.aux_encoding_schema[col] in ("sparse", "binary"):
-                    if value is None:
-                        value = ''
-                    # json handles ' and " in value
-                    filters.append(f"{col_milvus} == {json.dumps(str(value), ensure_ascii=False)}")
+                    if not value:
+                        filters.append(f"{col_milvus} == '__EMPTY__'")
+                    else:
+                        # json handles ' and " in value
+                        filters.append(f"{col_milvus} == {json.dumps(str(value), ensure_ascii=False)}")
         return " && ".join(filters)
 
     def __del__(self):

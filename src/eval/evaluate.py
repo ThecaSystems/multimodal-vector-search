@@ -154,9 +154,8 @@ def evaluate(
             )
             print(f"\nSelected modalities: {random_mods}")
             ranking_milvus = exp_milvus.run_experiment(random_id, random_mods.tolist(), limit=config["num_results"])
-            if len(ranking_milvus) > 0:
-                ranking_faiss = exp_faiss.run_experiment(random_id, random_mods.tolist(), limit=config["num_results"])
-                recalls.append(get_recall(ranking_milvus, ranking_faiss))
+            ranking_faiss = exp_faiss.run_experiment(random_id, random_mods.tolist(), limit=config["num_results"])
+            recalls.append(get_recall(ranking_milvus, ranking_faiss))
         for recall in recalls:
             result_data.append(
                 {
