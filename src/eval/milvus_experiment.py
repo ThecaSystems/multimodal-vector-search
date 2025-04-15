@@ -44,13 +44,10 @@ class MilvusExperiment(Experiment):
                 col_name = col.replace(" ", "_").lower()
                 col_value = self.dataset.df.iloc[i][col]
 
-                if self.dataset.df[col].dtype in ("float64", "int64"):
+                if self.aux_encoding_schema[col] == "dense":
                     milvus_metadata[col_name] = float(col_value)
-                elif self.dataset.df[col].dtype == "bool":
-                    milvus_metadata[col_name] = bool(col_value)
-                elif self.dataset.df[col].dtype in ("object", "category"):
+                elif self.aux_encoding_schema[col] in ("sparse", "binary"):
                     milvus_metadata[col_name] = str(col_value)
-
                 else:
                     raise ValueError(f"{col} data type is not supported. Value: {col_value}")
             item = {
@@ -83,15 +80,11 @@ class MilvusExperiment(Experiment):
                     if value == 'nan' or pd.isna(value):
                         value = self.dataset.df[col].max()
                     filters.append(f"{col_milvus} <= {value}")
-                elif self.aux_encoding_schema[col] == "sparse":
+                elif self.aux_encoding_schema[col] in ("sparse", "binary"):
                     if value is None:
                         value = ''
                     # json handles ' and " in value
-                    filters.append(f"{col_milvus} == {json.dumps(value, ensure_ascii=False)}")
-                elif self.aux_encoding_schema[col] == "binary":
-                    if self.dataset.df[col].dtype in ("object", "category"):
-                        value = json.dumps(value, ensure_ascii=False)
-                    filters.append(f"{col_milvus} == {value}")
+                    filters.append(f"{col_milvus} == {json.dumps(str(value), ensure_ascii=False)}")
         return " && ".join(filters)
 
     def __del__(self):

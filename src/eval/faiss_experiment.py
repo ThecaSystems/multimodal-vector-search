@@ -51,8 +51,7 @@ class FaissExperiment(Experiment):
                 elif self.aux_encoding_schema[col] == "sparse":
                     filters[col] = ([value], False), 1.0
                 elif self.aux_encoding_schema[col] == "binary":
-                    if self.dataset.df[col].dtype in ("object", "bool"):
-                        filters[col] = value, 1.0
+                    filters[col] = value, 1.0
                 elif self.aux_encoding_schema[col] == "geolocation":
                     location = self.dataset.df.loc[random_id, "Location"]
                     filters[col] = location + (False,), 1.0

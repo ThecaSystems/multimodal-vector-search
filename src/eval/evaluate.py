@@ -72,7 +72,7 @@ def setup_data(dataset_name: str) -> (pd.DataFrame, str, list[str]):
 
 def get_recall(list1: list[int], list2: list[int]) -> float:
     """Get recall for list2 with respect to list1."""
-    recall = 0
+    recall = 0.0
     if len(list1) > 0:
         true_positives = len(set(list1) & set(list2))
         false_negatives = len(set(list1) - set(list2))
@@ -154,8 +154,9 @@ def evaluate(
             )
             print(f"\nSelected modalities: {random_mods}")
             ranking_milvus = exp_milvus.run_experiment(random_id, random_mods.tolist(), limit=config["num_results"])
-            ranking_faiss = exp_faiss.run_experiment(random_id, random_mods.tolist(), limit=config["num_results"])
-            recalls.append(get_recall(ranking_milvus, ranking_faiss))
+            if len(ranking_milvus) > 0:
+                ranking_faiss = exp_faiss.run_experiment(random_id, random_mods.tolist(), limit=config["num_results"])
+                recalls.append(get_recall(ranking_milvus, ranking_faiss))
         for recall in recalls:
             result_data.append(
                 {
