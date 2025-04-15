@@ -10,7 +10,6 @@ from src.load_restaurants import Restaurants
 from src.load_flipkart import Flipkart
 from src.eval.faiss_experiment import FaissExperiment
 from src.eval.milvus_experiment import MilvusExperiment
-from src.eval.analyze import get_recall
 import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
@@ -71,46 +70,19 @@ def setup_data(dataset_name: str) -> (pd.DataFrame, str, list[str]):
         sys.exit(f"Dataset {dataset_name} does not exist!")
     return dataset, text_modality, aux_modalities
 
+def get_recall(list1: list[int], list2: list[int]) -> float:
+    """Get recall for list2 with respect to list1."""
+    recall = 0
+    if len(list1) > 0:
+        true_positives = len(set(list1) & set(list2))
+        false_negatives = len(set(list1) - set(list2))
 
-def evaluate(
-    dataset: DataLoader,
-    text_modality: str,
-    aux_modalities: list[str],
-    result_data: list[dict],
-    num_harmonics: int = 200,
-    interval_epsilon: float = 0.015,
-) -> None:
-    num_modalities = len(aux_modalities)
-    num_repetitions = config["num_repetitions"]
-    model = "mixedbread-ai/mxbai-embed-large-v1"
-    exp_milvus = MilvusExperiment(dataset, model, text_modality, aux_modalities, num_harmonics, interval_epsilon)
-    exp_faiss = FaissExperiment(dataset, model, text_modality, aux_modalities, num_harmonics, interval_epsilon)
-    for num_modalities in range(1, num_modalities + 1):
-        print(f"Number of modalities: {num_modalities}")
-        recalls = []
-        for i in tqdm(range(num_repetitions), desc="Repetitions"):
-            seed = int(str(num_modalities) + str(i))
-            rng = np.random.default_rng(seed=seed)
-            random_id = dataset.df.sample(random_state=seed).index[0]
-            random_mods = rng.choice(
-                aux_modalities,
-                size=num_modalities if num_modalities > 0 else 1,
-                replace=False,
-            )
-            print(f"\nSelected modalities: {random_mods}")
-            ranking_milvus = exp_milvus.run_experiment(random_id, random_mods.tolist(), limit=config["num_results"])
-            ranking_faiss = exp_faiss.run_experiment(random_id, random_mods.tolist(), limit=config["num_results"])
-            recalls.append(get_recall(ranking_milvus, ranking_faiss))
-        for recall in recalls:
-            result_data.append(
-                {
-                    "num_harmonics": num_harmonics,
-                    "interval_epsilon": interval_epsilon,
-                    "num_modalities": num_modalities,
-                    "recall": recall,
-                    "dataset": dataset.name.title(),
-                }
-            )
+        # Calculate recall
+        if true_positives + false_negatives > 0:
+            recall = true_positives / (true_positives + false_negatives)
+        else:
+            recall = 0.0  # Handle case where there are no true positives
+    return recall
 
 
 def print_results(results: list[pd.DataFrame]):
@@ -153,6 +125,47 @@ def plot_results(results: list[pd.DataFrame], x_column: str, x_label: str):
     plt.grid(axis="y")
     plt.legend(fontsize="14")
     plt.show(block=True)
+
+
+def evaluate(
+        dataset: DataLoader,
+        text_modality: str,
+        aux_modalities: list[str],
+        result_data: list[dict],
+        num_harmonics: int = 200,
+        interval_epsilon: float = 0.015,
+) -> None:
+    num_modalities = len(aux_modalities)
+    num_repetitions = config["num_repetitions"]
+    model = "mixedbread-ai/mxbai-embed-large-v1"
+    exp_milvus = MilvusExperiment(dataset, model, text_modality, aux_modalities, num_harmonics, interval_epsilon)
+    exp_faiss = FaissExperiment(dataset, model, text_modality, aux_modalities, num_harmonics, interval_epsilon)
+    for num_modalities in range(1, num_modalities + 1):
+        print(f"Number of modalities: {num_modalities}")
+        recalls = []
+        for i in tqdm(range(num_repetitions), desc="Repetitions"):
+            seed = int(str(num_modalities) + str(i))
+            rng = np.random.default_rng(seed=seed)
+            random_id = dataset.df.sample(random_state=seed).index[0]
+            random_mods = rng.choice(
+                aux_modalities,
+                size=num_modalities if num_modalities > 0 else 1,
+                replace=False,
+            )
+            print(f"\nSelected modalities: {random_mods}")
+            ranking_milvus = exp_milvus.run_experiment(random_id, random_mods.tolist(), limit=config["num_results"])
+            ranking_faiss = exp_faiss.run_experiment(random_id, random_mods.tolist(), limit=config["num_results"])
+            recalls.append(get_recall(ranking_milvus, ranking_faiss))
+        for recall in recalls:
+            result_data.append(
+                {
+                    "num_harmonics": num_harmonics,
+                    "interval_epsilon": interval_epsilon,
+                    "num_modalities": num_modalities,
+                    "recall": recall,
+                    "dataset": dataset.name.title(),
+                }
+            )
 
 
 if __name__ == "__main__":
