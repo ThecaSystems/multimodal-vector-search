@@ -70,37 +70,45 @@ def setup_data(dataset_name: str) -> (pd.DataFrame, str, list[str]):
         sys.exit(f"Dataset {dataset_name} does not exist!")
     return dataset, text_modality, aux_modalities
 
-def get_recall(list1: list[int], list2: list[int]) -> float:
-    """Get recall for list2 with respect to list1."""
-    recall = 0.0
-    if len(list1) > 0:
-        true_positives = len(set(list1) & set(list2))
-        false_negatives = len(set(list1) - set(list2))
 
-        # Calculate recall
-        if true_positives + false_negatives > 0:
-            recall = true_positives / (true_positives + false_negatives)
-        else:
-            recall = 0.0  # Handle case where there are no true positives
-    return recall
+def recall(list1: list[int], list2: list[int]) -> float:
+    """Get recall for list2 with respect to list1."""
+    if len(list1) == 0:
+        return 0.0
+    true_positives = len(set(list1) & set(list2))
+    false_negatives = len(set(list1) - set(list2))
+    if true_positives + false_negatives > 0:
+        return true_positives / (true_positives + false_negatives)
+    else:
+        return 0.0
+
+
+def r_precision(list1: list[int], list2: list[int]) -> float:
+    """Get r-precision for list2 with respect to list1."""
+    if len(list1) == 0:
+        return 0.0
+    k = len(list1)
+    true_positives = len(set(list1) & set(list2[:k]))
+    return true_positives / k
 
 
 def print_results(results: list[pd.DataFrame]):
+    metric_name = config["metric"]
     for i, df in enumerate(results):
         print(f"\nResults for {config['dataset'][i]}:")
         if config["modalities"] == "numerical":
             print(
                 df.groupby(["num_harmonics", "interval_epsilon", "num_modalities"])
-                .agg(recall=("recall", "mean"))
+                .agg(**{metric_name: (metric_name, "mean")})
                 .reset_index()
             )
-            print("Recall vs. num_harmonics")
-            print(df.groupby("num_harmonics").agg(recall=("recall", "mean")).reset_index())
-            print("Recall vs. interval_epsilon")
-            print(df.groupby("interval_epsilon").agg(recall=("recall", "mean")).reset_index())
+            print(f"{str.capitalize(metric_name)} vs. num_harmonics")
+            print(df.groupby("num_harmonics").agg(**{metric_name: (metric_name, "mean")}).reset_index())
+            print(f"{str.capitalize(metric_name)} vs. interval_epsilon")
+            print(df.groupby("interval_epsilon").agg(**{metric_name: (metric_name, "mean")}).reset_index())
         else:
-            print("Recall vs. num_modalities")
-            print(df.groupby("num_modalities").agg(recall=("recall", "mean")).reset_index())
+            print(f"{str.capitalize(metric_name)} vs. num_modalities")
+            print(df.groupby("num_modalities").agg(**{metric_name: (metric_name, "mean")}).reset_index())
 
 
 def plot_results(results: list[pd.DataFrame], x_column: str, x_label: str):
@@ -109,7 +117,7 @@ def plot_results(results: list[pd.DataFrame], x_column: str, x_label: str):
     sns.lineplot(
         data=df,
         x=x_column,
-        y="recall",
+        y=config["metric"],
         hue="dataset",
         style="dataset",
         markers=True,
@@ -120,29 +128,30 @@ def plot_results(results: list[pd.DataFrame], x_column: str, x_label: str):
     plt.xticks(df[x_column], fontsize=12)
     plt.tick_params(axis="y", labelsize=12)
     plt.xlabel(x_label, fontsize=14)
-    plt.ylabel("Recall (mean)", fontsize=14)
-    plt.title("Recall for numerical filters", fontsize=16)
+    plt.ylabel(f"{config['metric']} (mean)", fontsize=14)
+    plt.title(f"{config['metric']} for numerical filters", fontsize=16)
     plt.grid(axis="y")
     plt.legend(fontsize="14")
     plt.show(block=True)
 
 
 def evaluate(
-        dataset: DataLoader,
-        text_modality: str,
-        aux_modalities: list[str],
-        result_data: list[dict],
-        num_harmonics: int = 200,
-        interval_epsilon: float = 0.015,
+    dataset: DataLoader,
+    text_modality: str,
+    aux_modalities: list[str],
+    result_data: list[dict],
+    num_harmonics: int = 200,
+    interval_epsilon: float = 0.005,
 ) -> None:
     num_modalities = len(aux_modalities)
     num_repetitions = config["num_repetitions"]
     model = "mixedbread-ai/mxbai-embed-large-v1"
     exp_milvus = MilvusExperiment(dataset, model, text_modality, aux_modalities, num_harmonics, interval_epsilon)
     exp_faiss = FaissExperiment(dataset, model, text_modality, aux_modalities, num_harmonics, interval_epsilon)
+    print(f"\nChosen metric: {config['metric']}")
     for num_modalities in range(1, num_modalities + 1):
         print(f"Number of modalities: {num_modalities}")
-        recalls = []
+        measurements = []
         for i in tqdm(range(num_repetitions), desc="Repetitions"):
             seed = int(str(num_modalities) + str(i))
             rng = np.random.default_rng(seed=seed)
@@ -153,16 +162,23 @@ def evaluate(
                 replace=False,
             )
             print(f"\nSelected modalities: {random_mods}")
-            ranking_milvus = exp_milvus.run_experiment(random_id, random_mods.tolist(), limit=config["num_results"])
-            ranking_faiss = exp_faiss.run_experiment(random_id, random_mods.tolist(), limit=config["num_results"])
-            recalls.append(get_recall(ranking_milvus, ranking_faiss))
-        for recall in recalls:
+
+            # Milvus's max cutoff: 16384 (https://milvus.io/api-reference/pymilvus/v2.5.x/MilvusClient/Vector/search.md)
+            limit = 16384 if config["num_results"] == -1 else min(16384, config["num_results"])
+
+            ranking_milvus = exp_milvus.run_experiment(random_id, random_mods.tolist(), limit)
+            if len(ranking_milvus) > 0:
+                ranking_faiss = exp_faiss.run_experiment(random_id, random_mods.tolist(), limit)
+                metric_function = config["metric"]
+                measurement = globals()[metric_function](ranking_milvus, ranking_faiss)
+                measurements.append(measurement)
+        for measurement in measurements:
             result_data.append(
                 {
                     "num_harmonics": num_harmonics,
                     "interval_epsilon": interval_epsilon,
                     "num_modalities": num_modalities,
-                    "recall": recall,
+                    f"{config['metric']}": measurement,
                     "dataset": dataset.name.title(),
                 }
             )
