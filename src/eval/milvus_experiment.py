@@ -9,15 +9,16 @@ from src.eval.experiment import Experiment
 from src.load import DataLoader
 from src.encode import ModalityEncoder
 
+
 class MilvusExperiment(Experiment):
     def __init__(
-            self,
-            dataset: DataLoader,
-            model_path_or_name: str,
-            main_mod: str,
-            aux_mods: list[str],
-            num_harmonics,
-            interval_epsilon,
+        self,
+        dataset: DataLoader,
+        model_path_or_name: str,
+        main_mod: str,
+        aux_mods: list[str],
+        num_harmonics,
+        interval_epsilon,
     ) -> None:
         super().__init__(dataset, model_path_or_name, main_mod, aux_mods)
         self.num_harmonics = num_harmonics
@@ -28,10 +29,7 @@ class MilvusExperiment(Experiment):
         db_file = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         client = MilvusClient(db_file.name)
         client.create_collection(
-            collection_name=self.dataset.name,
-            dimension=data_dimensionality,
-            metric_type="IP",
-            index_type="IVF_FLAT"
+            collection_name=self.dataset.name, dimension=data_dimensionality, metric_type="IP", index_type="IVF_FLAT"
         )
         return client, db_file
 
@@ -43,19 +41,20 @@ class MilvusExperiment(Experiment):
             for col in self.aux_encoding_schema.keys():
                 col_name = col.replace(" ", "_").lower()
                 col_value = self.dataset.df.iloc[i][col]
-                if not col_value:
-                    milvus_metadata[col_name] = "__EMPTY__"  # Milvus needs special treatment of empty values
-                elif self.aux_encoding_schema[col] == "dense":
+                if self.aux_encoding_schema[col] == "dense":
                     milvus_metadata[col_name] = float(col_value)
                 elif self.aux_encoding_schema[col] in ("sparse", "binary"):
-                    milvus_metadata[col_name] = str(col_value)
+                    if not col_value:
+                        milvus_metadata[col_name] = "__EMPTY__"  # Milvus needs special treatment of empty values
+                    else:
+                        milvus_metadata[col_name] = str(col_value)
                 else:
                     raise ValueError(f"{col} data type is not supported. Value: {col_value}")
             item = {
                 "id": i,
                 "vector": data_vectors[i],
                 "text": self.dataset.df.iloc[i][self.main_mod],
-                **milvus_metadata
+                **milvus_metadata,
             }
             data.append(item)
         print("Done.")
@@ -66,7 +65,7 @@ class MilvusExperiment(Experiment):
         print(f"Indexing data...(chunk size: {chunk_size})\n")
         start_time = time()
         for i in tqdm(range(0, len(data), chunk_size), position=0, leave=True, ascii=True):
-            self.client[0].insert(collection_name=self.dataset.name, data=data[i:i + chunk_size])
+            self.client[0].insert(collection_name=self.dataset.name, data=data[i : i + chunk_size])
         print("Done.")
         return time() - start_time
 
@@ -78,7 +77,7 @@ class MilvusExperiment(Experiment):
                 value = self.dataset.df.loc[random_id, col]
                 if self.aux_encoding_schema[col] == "dense":
                     # if the sampled number is None, assign it to max
-                    if value == 'nan' or pd.isna(value):
+                    if value == "nan" or pd.isna(value):
                         value = self.dataset.df[col].max()
                     filters.append(f"{col_milvus} <= {value}")
                 elif self.aux_encoding_schema[col] in ("sparse", "binary"):
@@ -128,7 +127,7 @@ class MilvusExperiment(Experiment):
         print(f"Number of results: {len(res[0])}")
 
         for i, r in enumerate(res[0]):
-            res_ids.append(r['id'])
-            res_rel.append(r['distance'])
+            res_ids.append(r["id"])
+            res_rel.append(r["distance"])
 
         return res_ids, res_rel
