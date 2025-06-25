@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from src.load import DataLoader
+from src.load_bygghemma import Bygghemma
 from src.load_restaurants import Restaurants
 from src.load_flipkart import Flipkart
 from src.eval.faiss_experiment import FaissExperiment
@@ -32,42 +33,59 @@ def save_results(rankings: dict[int, list[int]], runtimes: dict[int, list[float]
 
 
 def setup_data(dataset_name: str) -> (pd.DataFrame, str, list[str]):
+    aux_modalities = []
     if dataset_name == "restaurants":
         dataset = Restaurants()
         text_modality = dataset.df.columns[0]
-        if config["modalities"] == "categorical":
-            aux_modalities = ["City", "Cuisines", "Rating text"]
-        elif config["modalities"] == "binary":
-            aux_modalities = ["Has Table booking", "Has Online delivery"]
-        elif config["modalities"] == "numerical":
-            aux_modalities = [
-                "Average Cost for two",
-                "Price range",
-                "Aggregate rating",
-                "Votes",
-            ]
-        elif config["modalities"] == "geolocation":
-            aux_modalities = ["Location"]
-        else:
-            sys.exit(f"Modality type {config['modalities']} does not exist!")
+        if "categorical" in config["modalities"]:
+            aux_modalities.extend(["City", "Cuisines", "Rating text"])
+        if "binary" in config["modalities"]:
+            aux_modalities.extend(["Has Table booking", "Has Online delivery"])
+        if "numerical" in config["modalities"]:
+            aux_modalities.extend(
+                [
+                    "Average Cost for two",
+                    "Price range",
+                    "Aggregate rating",
+                    "Votes",
+                ]
+            )
+        if config["modalities"] == "geolocation":
+            aux_modalities.extend(["Location"])
     elif dataset_name == "flipkart":
         dataset = Flipkart()
         text_modality = "product_name"
-        if config["modalities"] == "categorical":
-            aux_modalities = [
-                "brand",
-                "product_category_1",
-                "product_category_2",
-                "product_category_3",
-            ]
-        elif config["modalities"] == "binary":
-            aux_modalities = ["is_FK_Advantage_product"]
-        elif config["modalities"] == "numerical":
-            aux_modalities = ["retail_price", "discounted_price"]
-        else:
-            sys.exit(f"Modality type {config['modalities']} does not exist!")
+        if "categorical" in config["modalities"]:
+            aux_modalities.extend(
+                [
+                    "brand",
+                    "product_category_1",
+                    "product_category_2",
+                    "product_category_3",
+                ]
+            )
+        if "binary" in config["modalities"]:
+            aux_modalities.extend(["is_FK_Advantage_product"])
+        if "numerical" in config["modalities"]:
+            aux_modalities.extend(["retail_price", "discounted_price"])
+    elif dataset_name == "bygghemma":
+        dataset = Bygghemma()
+        text_modality = "name"
+        if "categorical" in config["modalities"]:
+            aux_modalities.extend(
+                [
+                    "brand",
+                    "category",
+                    "seller",
+                    "availability",
+                ]
+            )
+        if "binary" in config["modalities"]:
+            aux_modalities.extend(["itemCondition"])
+        if "numerical" in config["modalities"]:
+            aux_modalities.extend(["price", "lowPrice", "highPrice", "aggregateRatingValue"])
     else:
-        sys.exit(f"Dataset {dataset_name} does not exist!")
+        exit(f"Dataset {dataset_name} does not exist!")
     return dataset, text_modality, aux_modalities
 
 
@@ -96,7 +114,7 @@ def print_results(results: list[pd.DataFrame]):
     metric_name = config["metric"]
     for i, df in enumerate(results):
         print(f"\nResults for {config['dataset'][i]}:")
-        if config["modalities"] == "numerical":
+        if "numerical" in config["modalities"]:
             print(
                 df.groupby(["num_harmonics", "interval_epsilon", "num_modalities"])
                 .agg(**{metric_name: (metric_name, "mean")})
@@ -136,16 +154,16 @@ def plot_results(results: list[pd.DataFrame], x_column: str, x_label: str):
 
 
 def evaluate(
-    dataset: DataLoader,
-    text_modality: str,
-    aux_modalities: list[str],
-    result_data: list[dict],
-    num_harmonics: int = 200,
-    interval_epsilon: float = 0.005,
+    dataset: DataLoader, text_modality: str, aux_modalities: list[str], result_data: list[dict], **kwargs
 ) -> None:
+    num_harmonics = kwargs.get("num_harmonics", 200)
+    interval_epsilon = kwargs.get("interval_epsilon", 0.015)
     num_modalities = len(aux_modalities)
     num_repetitions = config["num_repetitions"]
-    model = "mixedbread-ai/mxbai-embed-large-v1"
+    if dataset.name == "bygghemma":
+        model = "/model"
+    else:
+        model = "mixedbread-ai/mxbai-embed-large-v1"
     exp_milvus = MilvusExperiment(dataset, model, text_modality, aux_modalities, num_harmonics, interval_epsilon)
     exp_faiss = FaissExperiment(dataset, model, text_modality, aux_modalities, num_harmonics, interval_epsilon)
     print(f"\nChosen metric: {config['metric']}")
@@ -164,11 +182,11 @@ def evaluate(
             print(f"\nSelected modalities: {random_mods}")
 
             # Milvus's max cutoff: 16384 (https://milvus.io/api-reference/pymilvus/v2.5.x/MilvusClient/Vector/search.md)
-            limit = 16384 if config["num_results"] == -1 else min(16384, config["num_results"])
+            limit = 16384 if config["num_results"] == [] else min(16384, config["num_results"][0])
 
-            ranking_milvus = exp_milvus.run_experiment(random_id, random_mods.tolist(), limit)
+            ranking_milvus = exp_milvus.run_experiment(random_id, random_mods.tolist(), limit)[0]
             if len(ranking_milvus) > 0:
-                ranking_faiss = exp_faiss.run_experiment(random_id, random_mods.tolist(), limit)
+                ranking_faiss = exp_faiss.run_experiment(random_id, random_mods.tolist(), limit)[0]
                 metric_function = config["metric"]
                 measurement = globals()[metric_function](ranking_milvus, ranking_faiss)
                 measurements.append(measurement)
@@ -190,7 +208,7 @@ if __name__ == "__main__":
     results_epsilon = []
     for dataset_name in config["dataset"]:
         dataset, text_modality, aux_modalities = setup_data(dataset_name)
-        if config["modalities"] == "numerical":
+        if "numerical" in config["modalities"]:
             out_data_harmonics = []
             out_data_epsilon = []
             for i in config["num_harmonics"]:
@@ -215,7 +233,7 @@ if __name__ == "__main__":
             out_data = []
             evaluate(dataset, text_modality, aux_modalities, out_data)
             results.append(pd.DataFrame(out_data))
-    if config["modalities"] == "numerical":
+    if "numerical" in config["modalities"]:
         print_results(results_harmonics)
         print_results(results_epsilon)
         plot_results(results_harmonics, x_column="num_harmonics", x_label="Number of harmonics")
