@@ -17,8 +17,8 @@ class MilvusExperiment(Experiment):
         model_path_or_name: str,
         main_mod: str,
         aux_mods: list[str],
-        num_harmonics,
-        interval_epsilon,
+        num_harmonics: int,
+        interval_epsilon: float,
     ) -> None:
         super().__init__(dataset, model_path_or_name, main_mod, aux_mods)
         self.num_harmonics = num_harmonics
@@ -71,7 +71,7 @@ class MilvusExperiment(Experiment):
 
     def make_filters(self, random_id: int, random_mods: list[str]) -> str:
         filters = []
-        if len(self.aux_encoding_schema) > 0:
+        if len(self.aux_encoding_schema) > 0 and len(random_mods) > 0:
             for col in random_mods:
                 col_milvus = col.replace(" ", "_").lower()
                 value = self.dataset.df.loc[random_id, col]

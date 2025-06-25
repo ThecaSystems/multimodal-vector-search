@@ -13,8 +13,8 @@ class FaissExperiment(Experiment):
         model_path_or_name: str,
         main_mod: str,
         aux_mods: list[str],
-        num_harmonics,
-        interval_epsilon,
+        num_harmonics: int,
+        interval_epsilon: float,
     ) -> None:
         super().__init__(dataset, model_path_or_name, main_mod, aux_mods)
         self.num_harmonics = num_harmonics
