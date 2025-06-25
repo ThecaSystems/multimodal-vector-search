@@ -1,7 +1,7 @@
 dataset: [restaurants, flipkart] # [restaurants, flipkart, bygghemma]
-modalities: numerical # numerical, binary, categorical, all
+modalities: [numerical] # numerical, binary, categorical
 metric: recall # r_precision, recall
-num_results: 10 # set to -1 to return the maximum number of results
+num_results: [10] # set to [] to return the maximum number of results
 num_repetitions: 10
 # Only used with numerical modalities
 num_harmonics: [50, 100, 150, 200, 250, 300, 350, 400, 450, 500]
