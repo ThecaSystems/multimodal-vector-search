@@ -89,4 +89,4 @@ class Experiment(ABC):
         self.init_experiment()
         res_ids, res_rel = self.get_results(random_id, random_mods, limit)
         self.print_experiment(res_ids, res_rel, random_mods)
-        return res_ids
+        return res_ids, res_rel
