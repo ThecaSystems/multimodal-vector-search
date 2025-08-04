@@ -1,5 +1,7 @@
 This is **FuseRank** - a framework for multimodal vector search in tabular data with filter support.
 
+The code was developed as part of the study published in ECML PKDD 2024: https://link.springer.com/chapter/10.1007/978-3-031-70371-3_29
+
 It comes bundled with 2 public datasets:
 
 - [Flipkart](https://www.kaggle.com/datasets/atharvjairath/flipkart-ecommerce-dataset), containing 20K products from an Indian e-commerce platform
